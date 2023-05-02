@@ -1,0 +1,3 @@
+[submodule "opcodes"]
+	path = opcodes
+	url = git@github.com:vusec/hw-fuzzing-riscv-opcodes.git

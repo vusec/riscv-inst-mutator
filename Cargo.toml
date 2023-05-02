@@ -1,0 +1,7 @@
+[package]
+name = "riscv_mutator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+libafl = "0.10.0"
