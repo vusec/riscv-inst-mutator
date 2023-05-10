@@ -32,6 +32,10 @@ impl ArgumentSpec {
     pub fn max_value(&self) -> u32 {
         2u32.pow(self.length)
     }
+
+    pub fn name(&self) -> &str {
+        self.name
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -84,6 +88,10 @@ impl InstructionTemplate {
 
     pub fn base_pattern(&self) -> EncodedInstruction {
         self.match_pattern
+    }
+
+    pub fn name(&self) -> &str {
+        self.name
     }
 
     pub fn matches(&self, data: EncodedInstruction) -> bool {
