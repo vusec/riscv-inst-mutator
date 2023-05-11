@@ -20,6 +20,10 @@ pub enum Mutation {
     ReplaceArg,
     // Repeats one instruction several times.
     RepeatOne,
+    // Repeats one instruction several times.
+    RepeatSeveral,
+    // Swaps two single instructions.
+    SwapTwo,
     // Removes a single instruction.
     Remove,
 }
@@ -145,7 +149,18 @@ impl RiscVInstructionMutator {
                 }
                 program[pos] = inst;
             }
+            Mutation::SwapTwo => {
+                let pos = valid_pos(rng)?;
+                let pos2 = valid_pos(rng)?;
+                let backup = program[pos].clone();
+                program[pos] = program[pos2].clone();
+                program[pos2] = backup;
+            }
             Mutation::RepeatOne => {
+                let pos = valid_pos(rng)?;
+                program.insert(pos, program[pos].clone());
+            }
+            Mutation::RepeatSeveral => {
                 let pos = valid_pos(rng)?;
                 for _ in 0..(rng.below(32) + 1) {
                     program.insert(pos, program[pos].clone());
@@ -167,6 +182,7 @@ pub type RiscVMutationList = tuple_list_type!(
     RiscVInstructionMutator,
     RiscVInstructionMutator,
     RiscVInstructionMutator,
+    RiscVInstructionMutator,
 );
 
 /// Provides a list of all supported RISC-V instruction mutators.
@@ -177,6 +193,7 @@ pub fn all_riscv_mutations() -> RiscVMutationList {
         RiscVInstructionMutator::new(Mutation::ReplaceArg),
         RiscVInstructionMutator::new(Mutation::Replace),
         RiscVInstructionMutator::new(Mutation::RepeatOne),
+        RiscVInstructionMutator::new(Mutation::SwapTwo),
     )
 }
 

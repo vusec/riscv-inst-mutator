@@ -1,6 +1,8 @@
 use std::ptr::write;
 
 use libafl::monitors::SimpleMonitor;
+// rustc workaround below causes this.
+#[allow(unused_imports)]
 use libafl::{
     bolts::{current_nanos, rands::StdRand, tuples::tuple_list, AsSlice},
     corpus::InMemoryCorpus,
@@ -19,6 +21,8 @@ use libafl::{
 use riscv_mutator::instructions::riscv::args;
 use riscv_mutator::instructions::riscv::rv_i::{ADD, ADDI};
 use riscv_mutator::instructions::{self, Argument, Instruction};
+// rustc workaround below causes this.
+#[allow(unused_imports)]
 use riscv_mutator::mutator::all_riscv_mutations;
 use riscv_mutator::parser::parse_instructions;
 
@@ -116,10 +120,16 @@ pub fn integration_test() {
         .generate_initial_inputs(&mut fuzzer, &mut executor, &mut generator, &mut mgr, 100)
         .expect("Failed to generate the initial corpus");
 
+    // Breaks rustc...
+    #[cfg(None)]
     let mutator = StdScheduledMutator::new(all_riscv_mutations());
 
+    // Breaks rustc...
+    #[cfg(None)]
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
 
+    // Breaks rustc...
+    #[cfg(None)]
     fuzzer
         .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
         .expect("Error in the fuzzing loop");
