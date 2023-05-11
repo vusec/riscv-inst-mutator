@@ -43,11 +43,11 @@ pub struct InstructionTemplate {
     name: &'static str,
     match_pattern: EncodedInstruction,
     mask_pattern: EncodedInstruction,
-    operand1: Option<ArgumentSpec>,
-    operand2: Option<ArgumentSpec>,
-    operand3: Option<ArgumentSpec>,
-    operand4: Option<ArgumentSpec>,
-    operand5: Option<ArgumentSpec>,
+    operand1: Option<&'static ArgumentSpec>,
+    operand2: Option<&'static ArgumentSpec>,
+    operand3: Option<&'static ArgumentSpec>,
+    operand4: Option<&'static ArgumentSpec>,
+    operand5: Option<&'static ArgumentSpec>,
 }
 
 impl InstructionTemplate {
@@ -56,11 +56,11 @@ impl InstructionTemplate {
         name: &'static str,
         match_pattern: EncodedInstruction,
         mask_pattern: EncodedInstruction,
-        operand1: Option<ArgumentSpec>,
-        operand2: Option<ArgumentSpec>,
-        operand3: Option<ArgumentSpec>,
-        operand4: Option<ArgumentSpec>,
-        operand5: Option<ArgumentSpec>,
+        operand1: Option<&'static ArgumentSpec>,
+        operand2: Option<&'static ArgumentSpec>,
+        operand3: Option<&'static ArgumentSpec>,
+        operand4: Option<&'static ArgumentSpec>,
+        operand5: Option<&'static ArgumentSpec>,
     ) -> Self {
         Self {
             name,
@@ -74,7 +74,7 @@ impl InstructionTemplate {
         }
     }
 
-    pub fn operands(&self) -> Flatten<std::array::IntoIter<&Option<ArgumentSpec>, 5>> {
+    pub fn operands(&self) -> Flatten<std::array::IntoIter<&Option<&'static ArgumentSpec>, 5>> {
         [
             &self.operand1,
             &self.operand2,
@@ -92,6 +92,15 @@ impl InstructionTemplate {
 
     pub fn name(&self) -> &str {
         self.name
+    }
+
+    pub fn op_with_name(&self, name: String) -> Option<&'static ArgumentSpec> {
+        for op in self.operands() {
+            if op.name() == name {
+                return Some(op.clone());
+            }
+        }
+        None
     }
 
     pub fn matches(&self, data: EncodedInstruction) -> bool {
