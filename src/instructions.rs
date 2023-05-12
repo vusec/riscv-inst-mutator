@@ -97,7 +97,7 @@ impl InstructionTemplate {
     pub fn op_with_name(&self, name: String) -> Option<&'static ArgumentSpec> {
         for op in self.operands() {
             if op.name() == name {
-                return Some(op.clone());
+                return Some(op);
             }
         }
         None

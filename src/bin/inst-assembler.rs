@@ -2,7 +2,9 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
 use std::{env, fs};
+use std::process::ExitCode;
 
+use libafl::prelude::value;
 use riscv_mutator::assembler::assemble_instructions;
 use riscv_mutator::instructions::{self, Argument, Instruction, InstructionTemplate};
 
@@ -21,40 +23,57 @@ fn find_template(name: String) -> Result<&'static InstructionTemplate, String> {
 }
 
 fn parse_arg(inst: &'static InstructionTemplate, arg_str: String) -> Result<Argument, String> {
-    let parts = arg_str.split("=");
+    let parts = arg_str.trim().split("=");
 
     if parts.clone().count() != 2 {
         return Err(format!("Not in ARG=VALUE format: '{}'", arg_str));
     }
 
     let name = parts.clone().nth(0).clone();
-    let value_str = parts.clone().nth(1).clone();
+    let value_str_or_err = parts.clone().nth(1).clone();
 
-    if value_str.is_none() || value_str.unwrap().is_empty() {
+    if value_str_or_err.is_none() || value_str_or_err.unwrap().is_empty() {
         return Err(format!("Missing value in arg: {}", arg_str));
     }
 
-    let spec = inst.op_with_name(name.unwrap().to_string());
-    if spec.is_none() {
+    let value_str = value_str_or_err.unwrap();
+
+    let spec_or_none = inst.op_with_name(name.unwrap().to_string());
+    if spec_or_none.is_none() {
+        let mut msg: String = format!("Possible operands for {}:\n", inst.name());
+        for op in inst.operands() {
+            msg.push_str(format!("* {}\n", op.name()).as_str());
+        }
+
         return Err(format!(
-            "Failed to find operand with name {}",
-            name.unwrap()
+            "Failed to find operand with name {}\n{}",
+            name.unwrap(), msg
         ));
     }
+    let spec = spec_or_none.unwrap();
 
-    if !value_str.unwrap().starts_with("0x") {
-        return Err(format!("Missing '0x' prefix: {}", value_str.unwrap()));
+    let is_hex = value_str.starts_with("0x");
+    let radix = if is_hex { 16 } else { 10 };
+
+    let value_or_err = u32::from_str_radix(value_str.trim_start_matches("0x"), radix);
+    if value_or_err.is_err() {
+        return Err(format!("Invalid decimal or hex value: {}", value_str));
+    }
+    let value = value_or_err.unwrap();
+
+    if value > spec.max_value() {
+        return Err(format!("Too large value {} for field {} which only allows up to {}",
+        value, spec.name(), spec.max_value()));
     }
 
-    let value = u32::from_str_radix(value_str.unwrap().trim_start_matches("0x"), 16);
-    if value.is_err() {
-        return Err(format!("Invalid hex value: {}", value_str.unwrap()));
-    }
-    Ok(Argument::new(&spec.unwrap(), value.unwrap()))
+    Ok(Argument::new(&spec, value))
 }
 
 fn parse_inst(line: String) -> Result<Instruction, String> {
-    let mut parts = line.split(" ").clone();
+    // Remove comments.
+    let without_comment = line.split("#").nth(0).unwrap();
+
+    let mut parts = without_comment.split(" ").clone();
     let name = parts.nth(0).clone();
     let inst = find_template(name.unwrap().to_string())?;
 
@@ -79,10 +98,22 @@ fn parse_inst(line: String) -> Result<Instruction, String> {
         args.push(arg.unwrap());
     }
 
+    if seen_ops.len() != inst.operands().count() {
+        let mut msg: String = format!("Missing operands in instruction {}:\n", inst.name());
+        for op in inst.operands() {
+            if seen_ops.contains(op.name()) {
+                continue;
+            }
+            msg.push_str(format!("* {}\n", op.name()).as_str());
+        }
+
+        return Err(msg);
+    }
+
     Ok(Instruction::new(inst, args))
 }
 
-fn main() {
+fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
 
     let input = &args[1];
@@ -97,16 +128,22 @@ fn main() {
     let lines = read_lines(input.to_string());
     for line_or_err in lines {
         let line = line_or_err.unwrap();
+        // Skip comments.
+        if line.trim().starts_with("#") || line.trim().is_empty() {
+            continue;
+        }
         let inst = parse_inst(line);
         if inst.is_err() {
             eprintln!("error: {}", inst.err().unwrap());
-            continue;
+            return ExitCode::FAILURE;
         }
 
         let out = assemble_instructions(&vec![inst.unwrap()]);
 
         file.write_all(&out).expect("Failed to write output file.");
     }
+
+    ExitCode::SUCCESS
 }
 
 #[cfg(test)]
@@ -158,6 +195,12 @@ mod tests {
     }
 
     #[test]
+    fn assembly_missing_op() {
+        let parse = parse_inst("addi rd=0x1 rs1=0x1".to_string());
+        assert!(parse.is_err_and(|s| s.contains("Missing operands in instruction")));
+    }
+
+    #[test]
     fn assembly_no_value() {
         let parse = parse_inst("addi rd= rs1=0x1 imm12=0x3".to_string());
         assert!(parse.is_err_and(|s| s.contains("Missing value in arg")));
@@ -170,8 +213,14 @@ mod tests {
     }
 
     #[test]
+    fn assembly_too_large_value() {
+        let parse = parse_inst("addi rd=0xfff rs1=0x1 imm12=0x3".to_string());
+        assert!(parse.is_err_and(|s| s.contains("Too large value ")));
+    }
+
+    #[test]
     fn assembly_non_hex_value() {
         let parse = parse_inst("addi rd=0xU rs1=0x1 imm12=0x3".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Invalid hex value")));
+        assert!(parse.is_err_and(|s| s.contains("Invalid decimal or hex value")));
     }
 }
