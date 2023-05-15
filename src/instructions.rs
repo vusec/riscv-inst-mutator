@@ -2,7 +2,7 @@ use std::iter::Flatten;
 
 pub type EncodedInstruction = u32;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ArgumentSpec {
     name: &'static str,
     length: u32,
@@ -38,7 +38,7 @@ impl ArgumentSpec {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct InstructionTemplate {
     name: &'static str,
     match_pattern: EncodedInstruction,
@@ -145,7 +145,7 @@ pub mod sets {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Argument {
     spec: &'static ArgumentSpec,
     value: u32,
@@ -167,7 +167,7 @@ impl Argument {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Instruction {
     template: &'static InstructionTemplate,
     arguments: Vec<Argument>,
@@ -234,6 +234,13 @@ mod tests {
     fn encode_add_rd1_1() {
         let inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
         assert_eq!(inst.encode(), 0x000000B3);
+    }
+
+    #[test]
+    fn compare_inst() {
+        let inst1 = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
+        let inst2 = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
+        assert!(inst1 == inst2);
     }
 
     #[test]

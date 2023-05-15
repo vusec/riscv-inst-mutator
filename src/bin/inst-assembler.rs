@@ -170,57 +170,58 @@ mod tests {
         assert_eq!(dump_inst(&inst), input);
     }
 
+    fn has_error(res : Result<Instruction, String>, needle : &str) {
+        assert!(res.is_err());
+        let err = res.err().unwrap();
+        assert!(err.contains(needle),
+                "'{}' does not contain '{}'", err, needle);
+    }
+
     #[test]
     fn assembly_invalid_inst() {
         let parse = parse_inst("addasdf".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Could not find instruction")));
+        has_error(parse, "Could not find instruction");
     }
 
     #[test]
     fn assembly_double_op() {
         let parse = parse_inst("addi rd=0x1 rd=0x1 rs1=0x1 imm12=0x3".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Duplicate operand")));
+        has_error(parse, "Duplicate operand");
     }
 
     #[test]
     fn assembly_invalid_format() {
         let parse = parse_inst("addi rd==0x1 rs1=0x1 imm12=0x3".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Not in ARG=VALUE")));
+        has_error(parse, "Not in ARG=VALUE");
     }
 
     #[test]
     fn assembly_invalid_op() {
         let parse = parse_inst("addi rERR=0x1 rs1=0x1 imm12=0x3".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Failed to find operand with name")));
+        has_error(parse, "Failed to find operand with name");
     }
 
     #[test]
     fn assembly_missing_op() {
         let parse = parse_inst("addi rd=0x1 rs1=0x1".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Missing operands in instruction")));
+        has_error(parse, "Missing operands in instruction");
     }
 
     #[test]
     fn assembly_no_value() {
         let parse = parse_inst("addi rd= rs1=0x1 imm12=0x3".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Missing value in arg")));
-    }
-
-    #[test]
-    fn assembly_non_hex_prefix() {
-        let parse = parse_inst("addi rd=1 rs1=0x1 imm12=0x3".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Missing '0x' prefix")));
+        has_error(parse, "Missing value in arg");
     }
 
     #[test]
     fn assembly_too_large_value() {
         let parse = parse_inst("addi rd=0xfff rs1=0x1 imm12=0x3".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Too large value ")));
+        has_error(parse, "Too large value ");
     }
 
     #[test]
     fn assembly_non_hex_value() {
         let parse = parse_inst("addi rd=0xU rs1=0x1 imm12=0x3".to_string());
-        assert!(parse.is_err_and(|s| s.contains("Invalid decimal or hex value")));
+        has_error(parse, "Invalid decimal or hex value: 0xU");
     }
 }

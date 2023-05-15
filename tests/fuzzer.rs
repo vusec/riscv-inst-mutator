@@ -1,6 +1,6 @@
 use std::ptr::write;
 
-use libafl::monitors::SimpleMonitor;
+use libafl::{monitors::SimpleMonitor, prelude::RandBytesGenerator, Evaluator};
 // rustc workaround below causes this.
 #[allow(unused_imports)]
 use libafl::{
@@ -20,11 +20,9 @@ use libafl::{
 };
 use riscv_mutator::instructions::riscv::args;
 use riscv_mutator::instructions::riscv::rv_i::{ADD, ADDI};
-use riscv_mutator::instructions::{self, Argument, Instruction};
-// rustc workaround below causes this.
-#[allow(unused_imports)]
+use riscv_mutator::instructions::{Argument, Instruction};
 use riscv_mutator::mutator::all_riscv_mutations;
-use riscv_mutator::parser::parse_instructions;
+use riscv_mutator::program_input::ProgramInput;
 
 /// Coverage map with explicit assignments due to the lack of instrumentation
 static mut SIGNALS: [u8; 16] = [0; 16];
@@ -35,11 +33,10 @@ fn signals_set(idx: usize) {
     unsafe { write(SIGNALS_PTR.add(idx), 1) };
 }
 
-#[allow(clippy::similar_names, clippy::manual_assert)]
 #[test]
 pub fn integration_test() {
     // The closure that we want to fuzz.
-    let mut harness = |input: &BytesInput| {
+    let mut harness = |input: &ProgramInput| {
         let inst1 = Instruction::new(
             &ADD,
             vec![
@@ -57,23 +54,17 @@ pub fn integration_test() {
             ],
         );
 
-        let target = input.target_bytes();
-        let buf = target.as_slice();
+        let insts = input.insts();
 
-        let insts = parse_instructions(&buf.to_vec(), &instructions::sets::riscv_g());
         if insts.len() >= 2 {
             signals_set(0);
-            if insts[0].template() == inst1.template() {
+            if insts[0] == inst1 {
                 signals_set(1);
-                if insts[0] == inst1 {
-                    signals_set(2);
-                    if insts[1].template() == inst2.template() {
-                        signals_set(3);
-                        if insts[1] == inst2 {
-                            signals_set(4);
-                            #[cfg(unix)]
-                            panic!("Artificial bug triggered =)");
-                        }
+                if insts[1].template() == inst2.template() {
+                    signals_set(3);
+                    if insts[1] == inst2 {
+                        signals_set(4);
+                        return ExitKind::Crash;
                     }
                 }
             }
@@ -90,8 +81,8 @@ pub fn integration_test() {
 
     let mut state = StdState::new(
         StdRand::with_seed(123),
-        InMemoryCorpus::new(),
-        InMemoryCorpus::new(),
+        InMemoryCorpus::<ProgramInput>::new(),
+        InMemoryCorpus::<ProgramInput>::new(),
         &mut feedback,
         &mut objective,
     )
@@ -114,22 +105,16 @@ pub fn integration_test() {
     )
     .expect("Failed to create the Executor");
 
-    let mut generator = RandPrintablesGenerator::new(32);
 
-    state
-        .generate_initial_inputs(&mut fuzzer, &mut executor, &mut generator, &mut mgr, 100)
-        .expect("Failed to generate the initial corpus");
+    let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
 
-    // Breaks rustc...
-    #[cfg(None)]
+    let init = ProgramInput::new([add_inst].to_vec());
+    fuzzer.add_input(&mut state, &mut executor, &mut mgr, init).expect("Failed to run empty input?");
+
     let mutator = StdScheduledMutator::new(all_riscv_mutations());
 
-    // Breaks rustc...
-    #[cfg(None)]
     let mut stages = tuple_list!(StdMutationalStage::new(mutator));
 
-    // Breaks rustc...
-    #[cfg(None)]
     fuzzer
         .fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)
         .expect("Error in the fuzzing loop");

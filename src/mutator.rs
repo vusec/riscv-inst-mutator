@@ -6,7 +6,7 @@ use crate::{
     assembler::assemble_instructions,
     generator::InstGenerator,
     instructions::{self, Instruction},
-    parser::parse_instructions,
+    parser::parse_instructions, program_input::HasProgramInput,
 };
 
 /// Supported mutation strategies.
@@ -39,7 +39,7 @@ pub struct RiscVInstructionMutator {
 impl<I, S> Mutator<I, S> for RiscVInstructionMutator
 where
     S: HasRand,
-    I: HasBytesVec,
+    I: HasProgramInput,
 {
     fn mutate(
         &mut self,
@@ -47,7 +47,7 @@ where
         input: &mut I,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        self.mutate_impl(state.rand_mut(), input.bytes_mut())
+        self.mutate_impl(state.rand_mut(), input.insts_mut())
     }
 }
 
@@ -77,6 +77,19 @@ impl RiscVInstructionMutator {
 
     /// Interprets the input bytes as RISC-V opcodes and mutates them.
     fn mutate_impl<Rng: Rand>(
+        &self,
+        rng: &mut Rng,
+        program: &mut Vec<Instruction>,
+    ) -> Result<MutationResult, Error> {
+        if self.mutate_with(program, rng, self.mutation).is_none() {
+            return Ok(MutationResult::Skipped);
+        }
+
+        Ok(MutationResult::Mutated)
+    }
+
+    /// Interprets the input bytes as RISC-V opcodes and mutates them.
+    fn mutate_bytes<Rng: Rand>(
         &self,
         rng: &mut Rng,
         input: &mut Vec<u8>,
@@ -136,12 +149,12 @@ impl RiscVInstructionMutator {
                 if inst.arguments().is_empty() {
                     return None;
                 }
-                let old_arg = *rng.choose(inst.arguments());
+                let old_arg = rng.choose(inst.arguments());
                 let arg_spec = old_arg.spec();
                 // Keep generating arguments until we find a new one.
                 loop {
                     let new_arg = InstGenerator::new().generate_argument(rng, arg_spec);
-                    if new_arg == old_arg {
+                    if &new_arg == old_arg {
                         continue;
                     }
                     inst.set_arg(new_arg);
@@ -257,10 +270,10 @@ mod tests {
         /// Returns true when mutation changed the data buffer.
         fn mutate(&mut self) -> bool {
             self.old_data = self.data.clone();
-            let result = self.mutator.mutate_impl(&mut self.rng, &mut self.data);
+            let result = self.mutator.mutate_bytes(&mut self.rng, &mut self.data);
             self.update_changed();
 
-            if result.is_ok_and(|res| res == MutationResult::Skipped) {
+            if result.is_ok() && result.unwrap() == MutationResult::Skipped {
                 assert_eq!(self.data, self.old_data);
                 return false;
             }

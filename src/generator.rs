@@ -27,7 +27,7 @@ impl InstGenerator {
             let filtered = self.known_args.iter().filter(|x| x.spec() == arg);
             let options = filtered.collect::<Vec<&Argument>>();
             if !options.is_empty() {
-                return *rand.choose(options);
+                return rand.choose(options).clone();
             }
         }
 
