@@ -1,5 +1,5 @@
 //! The gramatron grammar fuzzer
-use libafl::{prelude::{HasLen, Input}, Error};
+use libafl::{prelude::{HasLen, Input, HasTargetBytes, OwnedSlice}, Error};
 use core::{
     hash::{BuildHasher, Hasher},
 };
@@ -38,6 +38,13 @@ impl<'de> Deserialize<'de> for ProgramInput {
     }
 }
 
+impl HasTargetBytes for ProgramInput {
+    fn target_bytes(&self) -> OwnedSlice<u8> {
+        let bytes = assemble_instructions(&self.insts);
+        OwnedSlice::<u8>::from(bytes.to_vec())
+    }
+}
+
 struct ProgramInputVisitor;
 impl<'de> Visitor<'de> for ProgramInputVisitor {
     type Value = ProgramInput;
@@ -59,9 +66,14 @@ impl Input for ProgramInput {
     /// Generate a name for this input
     #[must_use]
     fn generate_name(&self, _idx: usize) -> String {
+        let mut result = String::new();
+        for inst in self.insts.as_slice() {
+            result += inst.template().name();
+            result += "_";
+        }
         let mut hasher = RandomState::with_seeds(0, 0, 0, 0).build_hasher();
         hasher.write(assemble_instructions(&self.insts).as_slice());
-        format!("{:016x}", hasher.finish())
+        format!("{}{:016x}", result, hasher.finish())
     }
 }
 
