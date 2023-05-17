@@ -33,10 +33,11 @@ use libafl::{
         calibrate::CalibrationStage, power::StdPowerMutationalStage,
     },
     state::{HasCorpus, StdState},
-    Error, Evaluator, prelude::tui::TuiMonitor,
+    Error, Evaluator, prelude::{tui::TuiMonitor, SimpleMonitor, current_time},
 };
 use nix::sys::signal::Signal;
-use riscv_mutator::{program_input::ProgramInput, instructions::{Instruction, Argument, riscv::{rv_i::ADD, args}}, mutator::all_riscv_mutations};
+use riscv_mutator::{program_input::ProgramInput, instructions::{Instruction, Argument, riscv::{rv_i::ADD, args}}, mutator::all_riscv_mutations, calibration::DummyCalibration};
+use libafl::events::ProgressReporter;
 
 pub fn main() {
     let res = match Command::new(env!("CARGO_PKG_NAME"))
@@ -187,8 +188,17 @@ fn fuzz(
 ) -> Result<(), Error> {
     const MAP_SIZE: usize = 2_621_440;
 
+    let logfile = "fuzz.log";
+
+    let log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
+
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
     let monitor = TuiMonitor::new("HWFuzzer".to_string(), true);
+    // let monitor = SimpleMonitor::new(|s| {
+    //     println!("LOG: '{s}'");
+    //     writeln!(log.borrow_mut(), "{:?} {}", current_time(), s).unwrap();
+    // });
+
 
     // The event manager handle the various events generated during the fuzzing loop
     // such as the notification of the addition of a new item to the corpus
@@ -214,7 +224,7 @@ fn fuzz(
 
     let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
 
-    let calibration = CalibrationStage::new(&map_feedback);
+    let calibration = DummyCalibration::new(&map_feedback);
 
     // Feedback to rate the interestingness of an input
     // This one is composed by two Feedbacks in OR
@@ -275,13 +285,17 @@ fn fuzz(
             println!("Failed to load initial corpus at {:?}", &seed_dir);
             process::exit(0);
         });
-    println!("We imported {} inputs from disk.", state.corpus().count());
 
     // The order of the stages matter!
     let mut stages = tuple_list!(calibration, power);
 
-    fuzzer.fuzz_loop(&mut stages, &mut executor, &mut state, &mut mgr)?;
+    loop {
+        let mut last = current_time();
+        let monitor_timeout = Duration::from_secs(1);
 
-    // Never reached
-    Ok(())
+        loop {
+            fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)?;
+            last = mgr.maybe_report_progress(&mut state, last, monitor_timeout)?;
+        }
+    }
 }

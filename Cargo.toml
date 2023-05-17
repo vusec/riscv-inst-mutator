@@ -5,8 +5,12 @@ edition = "2021"
 
 [dependencies]
 ahash = "0.8.3"
-clap = "4.2.7"
+clap = { version = "4.2.7", features = ["derive"] }
 colored = "2.0.0"
+hashbrown = "0.13.2"
 libafl = "0.10.0"
+libm = "0.2.7"
 nix = "0.26.2"
+num-traits = "0.2.15"
+postcard = "1.0.4"
 serde = "1.0.163"

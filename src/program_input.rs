@@ -69,11 +69,11 @@ impl Input for ProgramInput {
         let mut result = String::new();
         for inst in self.insts.as_slice() {
             result += inst.template().name();
-            result += "_";
+            result += "-";
         }
         let mut hasher = RandomState::with_seeds(0, 0, 0, 0).build_hasher();
         hasher.write(assemble_instructions(&self.insts).as_slice());
-        format!("{}{:016x}", result, hasher.finish())
+        format!("{}-hash:{:016x}", result, hasher.finish())
     }
 }
 
