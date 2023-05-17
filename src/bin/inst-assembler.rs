@@ -4,7 +4,7 @@ use std::io::{self, BufRead, BufReader, Write};
 use std::{env, fs};
 use std::process::ExitCode;
 
-use libafl::prelude::value;
+
 use riscv_mutator::assembler::assemble_instructions;
 use riscv_mutator::instructions::{self, Argument, Instruction, InstructionTemplate};
 

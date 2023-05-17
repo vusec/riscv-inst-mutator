@@ -1,6 +1,6 @@
 use std::ptr::write;
 
-use libafl::{monitors::SimpleMonitor, prelude::RandBytesGenerator, Evaluator};
+use libafl::{monitors::SimpleMonitor, Evaluator};
 // rustc workaround below causes this.
 #[allow(unused_imports)]
 use libafl::{

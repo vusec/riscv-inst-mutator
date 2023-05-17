@@ -2,7 +2,6 @@ use core::{cell::RefCell, time::Duration};
 use std::{
     env,
     fs::{self, OpenOptions},
-    io::Write,
     path::PathBuf,
     process,
 };
@@ -16,7 +15,7 @@ use libafl::{
         tuples::{tuple_list},
         AsMutSlice,
     },
-    corpus::{Corpus, InMemoryOnDiskCorpus, OnDiskCorpus},
+    corpus::{InMemoryOnDiskCorpus, OnDiskCorpus},
     events::SimpleEventManager,
     executors::forkserver::{ForkserverExecutor, TimeoutForkserverExecutor},
     feedback_or,
@@ -30,10 +29,10 @@ use libafl::{
         powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
     stages::{
-        calibrate::CalibrationStage, power::StdPowerMutationalStage,
+        power::StdPowerMutationalStage,
     },
-    state::{HasCorpus, StdState},
-    Error, Evaluator, prelude::{tui::TuiMonitor, SimpleMonitor, current_time},
+    state::{StdState},
+    Error, Evaluator, prelude::{tui::TuiMonitor, current_time},
 };
 use nix::sys::signal::Signal;
 use riscv_mutator::{program_input::ProgramInput, instructions::{Instruction, Argument, riscv::{rv_i::ADD, args}}, mutator::all_riscv_mutations, calibration::DummyCalibration};
@@ -190,7 +189,7 @@ fn fuzz(
 
     let logfile = "fuzz.log";
 
-    let log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
+    let _log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
     let monitor = TuiMonitor::new("HWFuzzer".to_string(), true);

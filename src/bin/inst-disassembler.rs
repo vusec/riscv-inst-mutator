@@ -1,4 +1,4 @@
-use std::env;
+
 use std::{
     fs::{self, File},
     io::Read,

@@ -2,23 +2,21 @@
 extern crate alloc;
 use alloc::{
     string::{String, ToString},
-    vec::Vec,
 };
 use core::{fmt::Debug, marker::PhantomData, time::Duration};
 
 use hashbrown::HashSet;
-use num_traits::Bounded;
+
 use serde::{Deserialize, Serialize};
 
 use libafl::{
-    bolts::{current_time, tuples::Named, AsIter},
+    bolts::{tuples::Named, AsIter},
     corpus::{Corpus, CorpusId, SchedulerTestcaseMetadata},
-    events::{Event, EventFirer, LogSeverity},
+    events::{EventFirer, LogSeverity},
     executors::{Executor, ExitKind, HasObservers},
-    feedbacks::{map::MapFeedbackMetadata, HasObserverName},
+    feedbacks::{HasObserverName},
     fuzzer::Evaluator,
     inputs::UsesInput,
-    monitors::UserStats,
     observers::{MapObserver, ObserversTuple, UsesObserver},
     schedulers::powersched::SchedulerMetadata,
     stages::Stage,
@@ -115,19 +113,13 @@ where
 
         executor.observers_mut().pre_exec_all(state, &input)?;
 
-        let mut has_errors = false;
-
         let exit_kind = executor.run_target(fuzzer, state, mgr, &input)?;
         if exit_kind != ExitKind::Ok {
-            if !has_errors {
-                mgr.log(
-                    state,
-                    LogSeverity::Warn,
-                    "Corpus entry errored on execution!".into(),
-                )?;
-
-                has_errors = true;
-            }
+            mgr.log(
+                state,
+                LogSeverity::Warn,
+                "Corpus entry errored on execution!".into(),
+            )?;
         };
 
         executor

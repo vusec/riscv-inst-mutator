@@ -3,11 +3,12 @@ use std::cmp::max;
 use libafl::prelude::*;
 
 use crate::{
-    assembler::assemble_instructions,
     generator::InstGenerator,
-    instructions::{self, Instruction},
-    parser::parse_instructions, program_input::HasProgramInput,
+    instructions::{self, Instruction}, program_input::HasProgramInput,
+    assembler::assemble_instructions,
+    parser::parse_instructions,
 };
+
 
 /// Supported mutation strategies.
 #[derive(Clone, Copy)]
@@ -89,6 +90,7 @@ impl RiscVInstructionMutator {
     }
 
     /// Interprets the input bytes as RISC-V opcodes and mutates them.
+    #[cfg(test)]
     fn mutate_bytes<Rng: Rand>(
         &self,
         rng: &mut Rng,
