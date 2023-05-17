@@ -72,14 +72,9 @@ impl Input for ProgramInput {
     /// Generate a name for this input
     #[must_use]
     fn generate_name(&self, _idx: usize) -> String {
-        let mut result = String::new();
-        for inst in self.insts.as_slice() {
-            result += inst.template().name();
-            result += "-";
-        }
         let mut hasher = RandomState::with_seeds(0, 0, 0, 0).build_hasher();
         hasher.write(assemble_instructions(&self.insts).as_slice());
-        format!("{}-hash:{:016x}", result, hasher.finish())
+        format!("size:{}-hash:{:016x}", self.insts().len(), hasher.finish())
     }
 }
 

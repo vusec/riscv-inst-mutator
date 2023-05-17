@@ -7,7 +7,7 @@ use std::{
 };
 
 use clap::{Arg, ArgAction, Command};
-use libafl::events::ProgressReporter;
+use libafl::{events::ProgressReporter, prelude::{ClientStats, Monitor, format_duration_hms, ClientId}};
 use libafl::{
     bolts::{
         current_nanos,
@@ -24,7 +24,7 @@ use libafl::{
     fuzzer::{Fuzzer, StdFuzzer},
     mutators::StdScheduledMutator,
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    prelude::{current_time, tui::TuiMonitor},
+    prelude::{current_time},
     schedulers::{
         powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
@@ -107,11 +107,6 @@ pub fn main() {
         }
     };
 
-    println!(
-        "Workdir: {:?}",
-        env::current_dir().unwrap().to_string_lossy().to_string()
-    );
-
     // For fuzzbench, crashes and finds are inside the same `corpus` directory, in the "queue" and "crashes" subdir.
     let mut out_dir = PathBuf::from(
         res.get_one::<String>("out")
@@ -179,6 +174,64 @@ pub fn main() {
     .expect("An error occurred while fuzzing");
 }
 
+
+/// Tracking monitor during fuzzing.
+#[derive(Clone)]
+pub struct HWFuzzMonitor
+{
+    start_time: Duration,
+    client_stats: Vec<ClientStats>,
+}
+
+impl Monitor for HWFuzzMonitor
+{
+    /// the client monitor, mutable
+    fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
+        &mut self.client_stats
+    }
+
+    /// the client monitor
+    fn client_stats(&self) -> &[ClientStats] {
+        &self.client_stats
+    }
+
+    /// Time this fuzzing run stated
+    fn start_time(&mut self) -> Duration {
+        self.start_time
+    }
+
+    fn display(&mut self, event_msg: String, sender_id: ClientId) {
+        print!(
+            "[{} #{}] run time: {}, clients: {}, interesting programs: {}, found taint violations: {}, execs: {}, exec/sec: {}",
+            event_msg,
+            sender_id.0,
+            format_duration_hms(&(current_time() - self.start_time)),
+            self.client_stats().len(),
+            self.corpus_size(),
+            self.objective_size(),
+            self.total_execs(),
+            self.execs_per_sec_pretty(),
+        );
+        let client = self.client_stats_mut_for(sender_id);
+        for (key, val) in &client.user_monitor {
+            print!(", {key}: {val}");
+        }
+        println!("");
+    }
+}
+
+impl HWFuzzMonitor
+{
+    /// Creates the monitor, using the `current_time` as `start_time`.
+    pub fn new() -> Self {
+        Self {
+            start_time: current_time(),
+            client_stats: vec![],
+        }
+    }
+}
+
+
 /// The actual fuzzer
 fn fuzz(
     corpus_dir: PathBuf,
@@ -197,11 +250,8 @@ fn fuzz(
     let _log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
-    let monitor = TuiMonitor::new("HWFuzzer".to_string(), true);
-    // let monitor = SimpleMonitor::new(|s| {
-    //     println!("LOG: '{s}'");
-    //     writeln!(log.borrow_mut(), "{:?} {}", current_time(), s).unwrap();
-    // });
+    //let monitor = HWFuzzTUI::new("HWFuzzer".to_string(), true);
+    let monitor = HWFuzzMonitor::new();
 
     // The event manager handle the various events generated during the fuzzing loop
     // such as the notification of the addition of a new item to the corpus
@@ -294,13 +344,11 @@ fn fuzz(
     // The order of the stages matter!
     let mut stages = tuple_list!(calibration, power);
 
-    loop {
-        let mut last = current_time();
-        let monitor_timeout = Duration::from_secs(1);
+    let mut last = current_time();
+    let monitor_timeout = Duration::from_secs(1);
 
-        loop {
-            fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)?;
-            last = mgr.maybe_report_progress(&mut state, last, monitor_timeout)?;
-        }
+    loop {
+        fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)?;
+        last = mgr.maybe_report_progress(&mut state, last, monitor_timeout)?;
     }
 }
