@@ -7,12 +7,13 @@ use std::{
 };
 
 use clap::{Arg, ArgAction, Command};
+use libafl::events::ProgressReporter;
 use libafl::{
     bolts::{
         current_nanos,
         rands::StdRand,
         shmem::{ShMem, ShMemProvider, UnixShMemProvider},
-        tuples::{tuple_list},
+        tuples::tuple_list,
         AsMutSlice,
     },
     corpus::{InMemoryOnDiskCorpus, OnDiskCorpus},
@@ -21,22 +22,26 @@ use libafl::{
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
-    mutators::{
-        StdScheduledMutator,
-    },
+    mutators::StdScheduledMutator,
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
+    prelude::{current_time, tui::TuiMonitor},
     schedulers::{
         powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
-    stages::{
-        power::StdPowerMutationalStage,
-    },
-    state::{StdState},
-    Error, Evaluator, prelude::{tui::TuiMonitor, current_time},
+    stages::power::StdPowerMutationalStage,
+    state::StdState,
+    Error, Evaluator,
 };
 use nix::sys::signal::Signal;
-use riscv_mutator::{program_input::ProgramInput, instructions::{Instruction, Argument, riscv::{rv_i::ADD, args}}, mutator::all_riscv_mutations, calibration::DummyCalibration};
-use libafl::events::ProgressReporter;
+use riscv_mutator::{
+    calibration::DummyCalibration,
+    instructions::{
+        riscv::{args, rv_i::ADD},
+        Argument, Instruction,
+    },
+    mutator::all_riscv_mutations,
+    program_input::ProgramInput,
+};
 
 pub fn main() {
     let res = match Command::new(env!("CARGO_PKG_NAME"))
@@ -198,7 +203,6 @@ fn fuzz(
     //     writeln!(log.borrow_mut(), "{:?} {}", current_time(), s).unwrap();
     // });
 
-
     // The event manager handle the various events generated during the fuzzing loop
     // such as the notification of the addition of a new item to the corpus
     let mut mgr = SimpleEventManager::new(monitor);
@@ -276,7 +280,9 @@ fn fuzz(
 
     let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
     let init = ProgramInput::new([add_inst].to_vec());
-    fuzzer.add_input(&mut state, &mut executor, &mut mgr, init).expect("Failed to run empty input?");
+    fuzzer
+        .add_input(&mut state, &mut executor, &mut mgr, init)
+        .expect("Failed to run empty input?");
 
     state
         .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])

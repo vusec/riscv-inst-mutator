@@ -1,9 +1,8 @@
 use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Write};
-use std::{env, fs};
 use std::process::ExitCode;
-
+use std::{env, fs};
 
 use riscv_mutator::assembler::assemble_instructions;
 use riscv_mutator::instructions::{self, Argument, Instruction, InstructionTemplate};
@@ -47,7 +46,8 @@ fn parse_arg(inst: &'static InstructionTemplate, arg_str: String) -> Result<Argu
 
         return Err(format!(
             "Failed to find operand with name {}\n{}",
-            name.unwrap(), msg
+            name.unwrap(),
+            msg
         ));
     }
     let spec = spec_or_none.unwrap();
@@ -62,8 +62,12 @@ fn parse_arg(inst: &'static InstructionTemplate, arg_str: String) -> Result<Argu
     let value = value_or_err.unwrap();
 
     if value > spec.max_value() {
-        return Err(format!("Too large value {} for field {} which only allows up to {}",
-        value, spec.name(), spec.max_value()));
+        return Err(format!(
+            "Too large value {} for field {} which only allows up to {}",
+            value,
+            spec.name(),
+            spec.max_value()
+        ));
     }
 
     Ok(Argument::new(&spec, value))
@@ -170,11 +174,15 @@ mod tests {
         assert_eq!(dump_inst(&inst), input);
     }
 
-    fn has_error(res : Result<Instruction, String>, needle : &str) {
+    fn has_error(res: Result<Instruction, String>, needle: &str) {
         assert!(res.is_err());
         let err = res.err().unwrap();
-        assert!(err.contains(needle),
-                "'{}' does not contain '{}'", err, needle);
+        assert!(
+            err.contains(needle),
+            "'{}' does not contain '{}'",
+            err,
+            needle
+        );
     }
 
     #[test]

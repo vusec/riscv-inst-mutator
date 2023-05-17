@@ -1,8 +1,5 @@
-
 extern crate alloc;
-use alloc::{
-    string::{String, ToString},
-};
+use alloc::string::{String, ToString};
 use core::{fmt::Debug, marker::PhantomData, time::Duration};
 
 use hashbrown::HashSet;
@@ -14,7 +11,7 @@ use libafl::{
     corpus::{Corpus, CorpusId, SchedulerTestcaseMetadata},
     events::{EventFirer, LogSeverity},
     executors::{Executor, ExitKind, HasObservers},
-    feedbacks::{HasObserverName},
+    feedbacks::HasObserverName,
     fuzzer::Evaluator,
     inputs::UsesInput,
     observers::{MapObserver, ObserversTuple, UsesObserver},
@@ -82,7 +79,7 @@ where
     OT: ObserversTuple<E::State>,
     E::State: HasCorpus + HasMetadata + HasClientPerfMonitor + HasNamedMetadata,
     Z: Evaluator<E, EM, State = E::State>,
-    ProgramInput: From<<<E as UsesState>::State as UsesInput>::Input>
+    ProgramInput: From<<<E as UsesState>::State as UsesInput>::Input>,
 {
     fn perform(
         &mut self,
@@ -127,7 +124,7 @@ where
             .post_exec_all(state, &input, &exit_kind)?;
 
         // Estimate duration based on number of instructions.
-        let program : ProgramInput = input.into();
+        let program: ProgramInput = input.into();
         let total_time = Duration::from_millis(program.insts().len() as u64);
 
         // If weighted scheduler or powerscheduler is used, update it
@@ -195,7 +192,6 @@ where
     OT: ObserversTuple<S>,
     S: HasCorpus + HasMetadata + HasNamedMetadata,
 {
-
     #[must_use]
     pub fn new<F>(map_feedback: &F) -> Self
     where

@@ -1,14 +1,19 @@
 //! The gramatron grammar fuzzer
-use libafl::{prelude::{HasLen, Input, HasTargetBytes, OwnedSlice}, Error};
-use core::{
-    hash::{BuildHasher, Hasher},
+use core::hash::{BuildHasher, Hasher};
+use libafl::{
+    prelude::{HasLen, HasTargetBytes, Input, OwnedSlice},
+    Error,
 };
 use std::fmt;
 
 use ahash::RandomState;
-use serde::{Deserialize, Serialize, Serializer, Deserializer, de::Visitor};
+use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{assembler::assemble_instructions, instructions::{Instruction, self}, parser::parse_instructions};
+use crate::{
+    assembler::assemble_instructions,
+    instructions::{self, Instruction},
+    parser::parse_instructions,
+};
 
 pub trait HasProgramInput {
     fn insts(&self) -> &[Instruction];
@@ -31,8 +36,8 @@ impl Serialize for ProgramInput {
 
 impl<'de> Deserialize<'de> for ProgramInput {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: Deserializer<'de>
+    where
+        D: Deserializer<'de>,
     {
         deserializer.deserialize_bytes(ProgramInputVisitor)
     }
@@ -54,11 +59,12 @@ impl<'de> Visitor<'de> for ProgramInputVisitor {
     }
 
     fn visit_borrowed_bytes<E>(self, v: &'de [u8]) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error, {
-        
-        Ok(ProgramInput{insts : parse_instructions(&v.to_vec(),
-                                                   &instructions::riscv::all())})
+    where
+        E: serde::de::Error,
+    {
+        Ok(ProgramInput {
+            insts: parse_instructions(&v.to_vec(), &instructions::riscv::all()),
+        })
     }
 }
 

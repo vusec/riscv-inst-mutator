@@ -3,12 +3,12 @@ use std::cmp::max;
 use libafl::prelude::*;
 
 use crate::{
-    generator::InstGenerator,
-    instructions::{self, Instruction}, program_input::HasProgramInput,
     assembler::assemble_instructions,
+    generator::InstGenerator,
+    instructions::{self, Instruction},
     parser::parse_instructions,
+    program_input::HasProgramInput,
 };
-
 
 /// Supported mutation strategies.
 #[derive(Clone, Copy)]
