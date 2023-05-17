@@ -7,7 +7,7 @@ use std::{
 };
 
 use clap::{Arg, ArgAction, Command};
-use libafl::{events::ProgressReporter, prelude::{ClientStats, Monitor, format_duration_hms, ClientId}};
+use libafl::{events::ProgressReporter, prelude::{ClientStats, Monitor, format_duration_hms, ClientId, Launcher, LlmpRestartingEventManager, EventConfig, Cores}};
 use libafl::{
     bolts::{
         current_nanos,
@@ -202,9 +202,7 @@ impl Monitor for HWFuzzMonitor
 
     fn display(&mut self, event_msg: String, sender_id: ClientId) {
         print!(
-            "[{} #{}] run time: {}, clients: {}, interesting programs: {}, found taint violations: {}, execs: {}, exec/sec: {}",
-            event_msg,
-            sender_id.0,
+            "time: {}, clients: {}, interesting programs: {}, found taint violations: {}, execs: {}, exec/sec: {}",
             format_duration_hms(&(current_time() - self.start_time)),
             self.client_stats().len(),
             self.corpus_size(),
@@ -253,102 +251,122 @@ fn fuzz(
     //let monitor = HWFuzzTUI::new("HWFuzzer".to_string(), true);
     let monitor = HWFuzzMonitor::new();
 
-    // The event manager handle the various events generated during the fuzzing loop
-    // such as the notification of the addition of a new item to the corpus
-    let mut mgr = SimpleEventManager::new(monitor);
+    let shmem_provider = UnixShMemProvider::new().expect("Failed to init shared memory");
+    
+    let mut run_client = |state: Option<_>,
+                          mut mgr: LlmpRestartingEventManager<_, _>,
+                          _core_id| {
+        // The unix shmem provider for shared memory, to match AFL++'s shared memory at the target side
+        let mut shmem_provider = UnixShMemProvider::new().unwrap();
 
-    // The unix shmem provider for shared memory, to match AFL++'s shared memory at the target side
-    let mut shmem_provider = UnixShMemProvider::new().unwrap();
+        // The coverage map shared between observer and executor
+        let mut shmem = shmem_provider.new_shmem(MAP_SIZE).unwrap();
+        // let the forkserver know the shmid
+        shmem.write_to_env("__AFL_SHM_ID").unwrap();
+        let shmem_buf = shmem.as_mut_slice();
+        // To let know the AFL++ binary that we have a big map
+        std::env::set_var("AFL_MAP_SIZE", format!("{}", MAP_SIZE));
 
-    // The coverage map shared between observer and executor
-    let mut shmem = shmem_provider.new_shmem(MAP_SIZE).unwrap();
-    // let the forkserver know the shmid
-    shmem.write_to_env("__AFL_SHM_ID").unwrap();
-    let shmem_buf = shmem.as_mut_slice();
-    // To let know the AFL++ binary that we have a big map
-    std::env::set_var("AFL_MAP_SIZE", format!("{}", MAP_SIZE));
+        // Create an observation channel using the hitcounts map of AFL++
+        let edges_observer =
+            unsafe { HitcountsMapObserver::new(StdMapObserver::new("shared_mem", shmem_buf)) };
 
-    // Create an observation channel using the hitcounts map of AFL++
-    let edges_observer =
-        unsafe { HitcountsMapObserver::new(StdMapObserver::new("shared_mem", shmem_buf)) };
+        // Create an observation channel to keep track of the execution time
+        let time_observer = TimeObserver::new("time");
 
-    // Create an observation channel to keep track of the execution time
-    let time_observer = TimeObserver::new("time");
+        let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
 
-    let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
+        let calibration = DummyCalibration::new(&map_feedback);
 
-    let calibration = DummyCalibration::new(&map_feedback);
+        // Feedback to rate the interestingness of an input
+        // This one is composed by two Feedbacks in OR
+        let mut feedback = feedback_or!(
+            // New maximization map feedback linked to the edges observer and the feedback state
+            map_feedback,
+            // Time feedback, this one does not need a feedback state
+            TimeFeedback::with_observer(&time_observer)
+        );
 
-    // Feedback to rate the interestingness of an input
-    // This one is composed by two Feedbacks in OR
-    let mut feedback = feedback_or!(
-        // New maximization map feedback linked to the edges observer and the feedback state
-        map_feedback,
-        // Time feedback, this one does not need a feedback state
-        TimeFeedback::with_observer(&time_observer)
-    );
+        // A feedback to choose if an input is a solution or not
+        let mut objective = CrashFeedback::new();
 
-    // A feedback to choose if an input is a solution or not
-    let mut objective = CrashFeedback::new();
-
-    // create a State from scratch
-    let mut state = StdState::new(
-        StdRand::with_seed(current_nanos()),
-        InMemoryOnDiskCorpus::<ProgramInput>::new(corpus_dir).unwrap(),
-        OnDiskCorpus::new(objective_dir).unwrap(),
-        &mut feedback,
-        &mut objective,
-    )
-    .unwrap();
-
-    let mutator = StdScheduledMutator::new(all_riscv_mutations());
-
-    let power = StdPowerMutationalStage::new(mutator);
-
-    // A minimization+queue policy to get testcasess from the corpus
-    let scheduler = IndexesLenTimeMinimizerScheduler::new(StdWeightedScheduler::with_schedule(
-        &mut state,
-        &edges_observer,
-        Some(PowerSchedule::EXPLORE),
-    ));
-
-    // A fuzzer with feedbacks and a corpus scheduler
-    let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
-
-    let forkserver = ForkserverExecutor::builder()
-        .program(executable)
-        .debug_child(debug_child)
-        .shmem_provider(&mut shmem_provider)
-        .parse_afl_cmdline(arguments)
-        .coverage_map_size(MAP_SIZE)
-        .is_persistent(true)
-        .build_dynamic_map(edges_observer, tuple_list!(time_observer))
+        // create a State from scratch
+        let mut state = StdState::new(
+            StdRand::with_seed(current_nanos()),
+            InMemoryOnDiskCorpus::<ProgramInput>::new(corpus_dir.clone()).unwrap(),
+            OnDiskCorpus::new(objective_dir.clone()).unwrap(),
+            &mut feedback,
+            &mut objective,
+        )
         .unwrap();
 
-    let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
-        .expect("Failed to create the executor.");
+        let mutator = StdScheduledMutator::new(all_riscv_mutations());
 
-    let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
-    let init = ProgramInput::new([add_inst].to_vec());
-    fuzzer
-        .add_input(&mut state, &mut executor, &mut mgr, init)
-        .expect("Failed to run empty input?");
+        let power = StdPowerMutationalStage::new(mutator);
 
-    state
-        .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
-        .unwrap_or_else(|_| {
-            println!("Failed to load initial corpus at {:?}", &seed_dir);
-            process::exit(0);
-        });
+        // A minimization+queue policy to get testcasess from the corpus
+        let scheduler = IndexesLenTimeMinimizerScheduler::new(StdWeightedScheduler::with_schedule(
+            &mut state,
+            &edges_observer,
+            Some(PowerSchedule::EXPLORE),
+        ));
 
-    // The order of the stages matter!
-    let mut stages = tuple_list!(calibration, power);
+        // A fuzzer with feedbacks and a corpus scheduler
+        let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
-    let mut last = current_time();
-    let monitor_timeout = Duration::from_secs(1);
+        let forkserver = ForkserverExecutor::builder()
+            .program(executable.clone())
+            .debug_child(debug_child)
+            .shmem_provider(&mut shmem_provider)
+            .parse_afl_cmdline(arguments)
+            .coverage_map_size(MAP_SIZE)
+            .is_persistent(true)
+            .build_dynamic_map(edges_observer, tuple_list!(time_observer))
+            .unwrap();
 
-    loop {
-        fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)?;
-        last = mgr.maybe_report_progress(&mut state, last, monitor_timeout)?;
+        let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
+            .expect("Failed to create the executor.");
+
+        let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
+        let init = ProgramInput::new([add_inst].to_vec());
+        fuzzer
+            .add_input(&mut state, &mut executor, &mut mgr, init)
+            .expect("Failed to run empty input?");
+
+        state
+            .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
+            .unwrap_or_else(|_| {
+                println!("Failed to load initial corpus at {:?}", &seed_dir);
+                process::exit(0);
+            });
+
+        // The order of the stages matter!
+        let mut stages = tuple_list!(calibration, power);
+
+        let mut last = current_time();
+        let monitor_timeout = Duration::from_secs(1);
+
+        loop {
+            fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)?;
+            last = mgr.maybe_report_progress(&mut state, last, monitor_timeout)?;
+        }
+    };
+
+    let conf = EventConfig::AlwaysUnique;
+    let cores = Cores::all()?;
+
+    let launcher = Launcher::builder()
+    .shmem_provider(shmem_provider)
+    .configuration(conf)
+    .cores(&cores)
+    .monitor(monitor)
+    .run_client(&mut run_client);
+
+    let launcher = launcher.stdout_file(Some("/dev/null"));
+    match launcher.build().launch() {
+        Ok(()) => (),
+        Err(Error::ShuttingDown) => println!("\nFuzzing stopped by user. Good Bye."),
+        Err(err) => panic!("Fuzzing failed {err:?}"),
     }
+    Ok(())
 }
