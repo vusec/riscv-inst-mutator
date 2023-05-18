@@ -66,9 +66,12 @@ impl Monitor for HWFuzzMonitor
             }
             data.add_message(msg.to_string());
 
+            msg += "\n";
             let logfile = "fuzz.log";
-    
-            let mut log = OpenOptions::new().append(true).create(true).open(logfile).expect("Failed to open log");
+            let mut log = OpenOptions::new()
+                .append(true).create(true)
+                .open(logfile)
+                .expect("Failed to open log");
             log.write_all(msg.as_bytes()).expect("Failed to write log");
         }
         
