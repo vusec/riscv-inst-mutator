@@ -3,7 +3,7 @@ use std::{
     env,
     fs::{self, OpenOptions},
     path::PathBuf,
-    process,
+    process, sync::{Arc, Mutex},
 };
 
 use clap::{Arg, ArgAction, Command};
@@ -39,7 +39,8 @@ use riscv_mutator::{
         Argument, Instruction,
     },
     mutator::all_riscv_mutations,
-    program_input::ProgramInput,
+    program_input::ProgramInput, monitor::HWFuzzMonitor,
+    fuzz_ui::FuzzUI
 };
 
 pub fn main() {
@@ -70,6 +71,13 @@ pub fn main() {
                 .long("timeout")
                 .help("Timeout for each individual execution, in milliseconds")
                 .default_value("60000"),
+        )
+        .arg(
+            Arg::new("cores")
+                .short('c')
+                .long("cores")
+                .help("Which cores to use ('all', or '1', or '1-2,3-4'")
+                .default_value("all"),
         )
         .arg(
             Arg::new("exec")
@@ -148,6 +156,10 @@ pub fn main() {
 
     let debug_child = res.get_flag("debug-child");
 
+    let cores = Cores::from_cmdline(res.get_one::<String>("cores")
+        .expect("Failed to retrieve --cores arg"))
+        .expect("Failed to parse --cores arg");
+
     let signal = str::parse::<Signal>(
         &res.get_one::<String>("signal")
             .expect("The --signal parameter is missing")
@@ -169,65 +181,10 @@ pub fn main() {
         debug_child,
         signal,
         &arguments,
+        cores,
     )
     .expect("An error occurred while fuzzing");
 }
-
-
-/// Tracking monitor during fuzzing.
-#[derive(Clone)]
-pub struct HWFuzzMonitor
-{
-    start_time: Duration,
-    client_stats: Vec<ClientStats>,
-}
-
-impl Monitor for HWFuzzMonitor
-{
-    /// the client monitor, mutable
-    fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
-        &mut self.client_stats
-    }
-
-    /// the client monitor
-    fn client_stats(&self) -> &[ClientStats] {
-        &self.client_stats
-    }
-
-    /// Time this fuzzing run stated
-    fn start_time(&mut self) -> Duration {
-        self.start_time
-    }
-
-    fn display(&mut self, _event_msg: String, sender_id: ClientId) {
-        print!(
-            "time: {}, clients: {}, interesting programs: {}, found taint violations: {}, execs: {}, exec/sec: {}",
-            format_duration_hms(&(current_time() - self.start_time)),
-            self.client_stats().len(),
-            self.corpus_size(),
-            self.objective_size(),
-            self.total_execs(),
-            self.execs_per_sec_pretty(),
-        );
-        let client = self.client_stats_mut_for(sender_id);
-        for (key, val) in &client.user_monitor {
-            print!(", {key}: {val}");
-        }
-        println!("");
-    }
-}
-
-impl HWFuzzMonitor
-{
-    /// Creates the monitor, using the `current_time` as `start_time`.
-    pub fn new() -> Self {
-        Self {
-            start_time: current_time(),
-            client_stats: vec![],
-        }
-    }
-}
-
 
 /// The actual fuzzer
 fn fuzz(
@@ -239,7 +196,11 @@ fn fuzz(
     debug_child: bool,
     signal: Signal,
     arguments: &[String],
+    cores : Cores
 ) -> Result<(), Error> {
+
+    let ui : Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new()));
+
     const MAP_SIZE: usize = 2_621_440;
 
     let logfile = "fuzz.log";
@@ -247,8 +208,7 @@ fn fuzz(
     let _log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
-    //let monitor = HWFuzzTUI::new("HWFuzzer".to_string(), true);
-    let monitor = HWFuzzMonitor::new();
+    let monitor = HWFuzzMonitor::new(ui);
 
     let shmem_provider = UnixShMemProvider::new().expect("Failed to init shared memory");
     let mut shmem_provider_client = shmem_provider.clone();
@@ -351,14 +311,13 @@ fn fuzz(
     };
 
     let conf = EventConfig::AlwaysUnique;
-    let cores = Cores::all()?;
 
     let launcher = Launcher::builder()
-    .shmem_provider(shmem_provider)
-    .configuration(conf)
-    .cores(&cores)
-    .monitor(monitor)
-    .run_client(&mut run_client);
+        .shmem_provider(shmem_provider)
+        .configuration(conf)
+        .cores(&cores)
+        .monitor(monitor)
+        .run_client(&mut run_client);
 
     let launcher = launcher.stdout_file(Some("/dev/null"));
     match launcher.build().launch() {

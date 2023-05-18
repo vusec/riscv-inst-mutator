@@ -1,0 +1,168 @@
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use libafl::prelude::{current_time, format_duration_hms};
+use std::{
+    io::{self, Stdout},
+    time::{Duration, Instant}, cmp::max,
+};
+use tui::{
+    backend::{Backend, CrosstermBackend},
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    symbols,
+    text::Span,
+    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType},
+    Frame, Terminal,
+};
+
+pub struct FuzzUIData {
+    pub max_coverage : Vec<(f64, f64)>,
+    start_time : std::time::Duration,
+}
+
+impl FuzzUIData {
+    pub fn add_max_coverage(&mut self, value : f64) {
+        if self.max_coverage.is_empty() || self.max_coverage.last().unwrap().1 < value {
+            self.max_coverage.push((self.rel_time_secs(), value))
+        }
+    }
+
+    fn rel_time_secs(&self) -> f64 {
+        (current_time() - self.start_time).as_secs_f64()
+    }
+}
+
+pub struct FuzzUI {
+    terminal : Terminal<CrosstermBackend<Stdout>>,
+    last_tick : Instant,
+    data : FuzzUIData
+}
+
+impl FuzzUI {
+    pub fn new() -> FuzzUI {
+        // setup terminal
+        enable_raw_mode().expect("Failed to enable raw terminal mode");
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture).expect("Failed to enable terminal mode");
+        let backend = CrosstermBackend::new(stdout);
+        let terminal = Terminal::new(backend).expect("Failed to create terminal wrapper");
+
+        FuzzUI {
+            terminal,
+            last_tick : Instant::now(),
+            data : FuzzUIData {
+                max_coverage : Vec::<(f64, f64)>::new(),
+                start_time : current_time()
+            }
+        }
+    }
+
+    pub fn data(&mut self) -> &mut FuzzUIData {
+        &mut self.data
+    }
+
+    fn on_tick(&mut self) {
+        self.terminal.draw(|f| ui(f, &self.data)).unwrap();
+
+        let timeout = Duration::from_millis(1);
+        if crossterm::event::poll(timeout).unwrap() {
+            if let Event::Key(key) = event::read().unwrap() {
+                if let KeyCode::Char('q') = key.code {
+                    panic!("Exiting");
+                }
+            }
+        }
+    }
+
+    pub fn try_tick(&mut self) {
+        let tick_rate = Duration::from_millis(250);
+
+        if self.last_tick.elapsed() >= tick_rate {
+            self.on_tick();
+            self.last_tick = Instant::now();
+        }
+    }
+}
+
+impl Drop for FuzzUI {
+
+    fn drop(&mut self) {
+        // restore terminal
+        disable_raw_mode().unwrap();
+        execute!(
+            self.terminal.backend_mut(),
+            LeaveAlternateScreen,
+            DisableMouseCapture
+        ).unwrap();
+        self.terminal.show_cursor().unwrap();
+    }
+}
+
+
+fn ui<B: Backend>(f: &mut Frame<B>, data : &FuzzUIData) {
+    let size = f.size();
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 3),
+            ]
+            .as_ref(),
+        )
+        .split(size);
+
+
+    let last_slot = data.max_coverage.last().or(Some(&(1.0 as f64, 10.0 as f64))).unwrap().clone();
+
+    let mut coverage = data.max_coverage.clone();
+    coverage.push((data.rel_time_secs(), last_slot.1));
+
+    let max_time = format_duration_hms(&(current_time() - data.start_time));
+
+    let datasets = vec![Dataset::default()
+        .name("data")
+        .marker(symbols::Marker::Braille)
+        .style(Style::default().fg(Color::Yellow))
+        .graph_type(GraphType::Line)
+        .data(coverage.as_slice())];
+
+    let chart = Chart::new(datasets)
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    "Maximum reached coverage",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL),
+        )
+        .x_axis(
+            Axis::default()
+                .title("Elapsed time (s)")
+                .style(Style::default().fg(Color::Gray))
+                .bounds([0.0,
+                         data.rel_time_secs()])
+                .labels(vec![
+                    Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("{}", max_time),
+                                 Style::default().add_modifier(Modifier::BOLD)),
+                ]),
+        )
+        .y_axis(
+            Axis::default()
+                .title("Number of bytes in coverage map")
+                .style(Style::default().fg(Color::Gray))
+                .bounds([0.0, last_slot.1 * 1.1])
+                .labels(vec![
+                    Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(format!("{:0}", last_slot.1),
+                                 Style::default().add_modifier(Modifier::BOLD)),
+                ]),
+        );
+    f.render_widget(chart, chunks[1]);
+}
