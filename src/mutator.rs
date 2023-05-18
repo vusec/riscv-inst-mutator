@@ -3,11 +3,15 @@ use std::cmp::max;
 use libafl::prelude::*;
 
 use crate::{
-    assembler::assemble_instructions,
     generator::InstGenerator,
     instructions::{self, Instruction},
-    parser::parse_instructions,
     program_input::HasProgramInput,
+};
+
+#[cfg(test)]
+use crate::{
+    assembler::assemble_instructions,
+    parser::parse_instructions,
 };
 
 /// Supported mutation strategies.
