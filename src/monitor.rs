@@ -36,6 +36,8 @@ impl Monitor for HWFuzzMonitor
     }
 
     fn display(&mut self, _event_msg: String, sender_id: ClientId) {
+        let execs = self.total_execs();
+        let execs_per_sec = self.execs_per_sec_pretty();
         {
             let client = self.client_stats_mut_for(sender_id).clone();
 
@@ -50,6 +52,16 @@ impl Monitor for HWFuzzMonitor
                     data.add_max_coverage(bits as f64);
                 }
             }
+            
+            let msg =  format!(
+                "time: {}, corpus size: {}, taint violations: {}, execs: {}, exec/sec: {}",
+                format_duration_hms(&(current_time() - self.start_time)),
+                self.corpus_size(),
+                self.objective_size(),
+                execs,
+                execs_per_sec,
+            );
+            data.add_message(msg.to_string());
         }
         let mut ui = self.ui.lock().unwrap();
         ui.try_tick();

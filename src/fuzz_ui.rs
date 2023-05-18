@@ -6,7 +6,7 @@ use crossterm::{
 use libafl::prelude::{current_time, format_duration_hms};
 use std::{
     io::{self, Stdout},
-    time::{Duration, Instant}, cmp::max,
+    time::{Duration, Instant}, collections::VecDeque,
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -14,13 +14,14 @@ use tui::{
     style::{Color, Modifier, Style},
     symbols,
     text::Span,
-    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType},
+    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, ListItem, List},
     Frame, Terminal,
 };
 
 pub struct FuzzUIData {
     pub max_coverage : Vec<(f64, f64)>,
     start_time : std::time::Duration,
+    messages : VecDeque<String>,
 }
 
 impl FuzzUIData {
@@ -28,6 +29,10 @@ impl FuzzUIData {
         if self.max_coverage.is_empty() || self.max_coverage.last().unwrap().1 < value {
             self.max_coverage.push((self.rel_time_secs(), value))
         }
+    }
+
+    pub fn add_message(&mut self, value : String) {
+        self.messages.push_front(value);
     }
 
     fn rel_time_secs(&self) -> f64 {
@@ -55,7 +60,8 @@ impl FuzzUI {
             last_tick : Instant::now(),
             data : FuzzUIData {
                 max_coverage : Vec::<(f64, f64)>::new(),
-                start_time : current_time()
+                start_time : current_time(),
+                messages : VecDeque::<String>::new(),
             }
         }
     }
@@ -108,13 +114,27 @@ fn ui<B: Backend>(f: &mut Frame<B>, data : &FuzzUIData) {
         .direction(Direction::Vertical)
         .constraints(
             [
-                Constraint::Ratio(1, 3),
-                Constraint::Ratio(1, 3),
+                Constraint::Ratio(1, 2),
+                Constraint::Ratio(1, 2),
             ]
             .as_ref(),
         )
         .split(size);
 
+    // Iterate through all elements in the `items` app and append some debug text to it.
+    let items: Vec<ListItem> = data
+        .messages
+        .iter()
+        .map(|i| {
+            ListItem::new(i.as_str()).style(Style::default())
+        })
+        .collect();
+
+    let items = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title("Messages"));
+
+    // We can now render the item list
+    f.render_widget(items, chunks[0]);
 
     let last_slot = data.max_coverage.last().or(Some(&(1.0 as f64, 10.0 as f64))).unwrap().clone();
 
@@ -124,7 +144,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, data : &FuzzUIData) {
     let max_time = format_duration_hms(&(current_time() - data.start_time));
 
     let datasets = vec![Dataset::default()
-        .name("data")
+        .name("Coverage")
         .marker(symbols::Marker::Braille)
         .style(Style::default().fg(Color::Yellow))
         .graph_type(GraphType::Line)
