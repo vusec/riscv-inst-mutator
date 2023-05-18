@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::{sync::{Arc, Mutex}, borrow::BorrowMut};
+use std::{sync::{Arc, Mutex}, borrow::BorrowMut, cell::RefCell, fs::OpenOptions, io::Write};
 
 use libafl::{prelude::{ClientStats, Monitor, format_duration_hms, ClientId}};
 use libafl::{
@@ -53,7 +53,7 @@ impl Monitor for HWFuzzMonitor
                 }
             }
             
-            let msg =  format!(
+            let mut msg =  format!(
                 "time: {}, corpus size: {}, taint violations: {}, execs: {}, exec/sec: {}",
                 format_duration_hms(&(current_time() - self.start_time)),
                 self.corpus_size(),
@@ -61,28 +61,19 @@ impl Monitor for HWFuzzMonitor
                 execs,
                 execs_per_sec,
             );
+            for (key, val) in &client.user_monitor {
+                msg += format!(", {key}: {val}").as_str();
+            }
             data.add_message(msg.to_string());
+
+            let logfile = "fuzz.log";
+    
+            let mut log = OpenOptions::new().append(true).create(true).open(logfile).expect("Failed to open log");
+            log.write_all(msg.as_bytes()).expect("Failed to write log");
         }
+        
         let mut ui = self.ui.lock().unwrap();
         ui.try_tick();
-
-        #[cfg(none)]
-        if false {
-            print!(
-                "time: {}, clients: {}, interesting programs: {}, found taint violations: {}, execs: {}, exec/sec: {}",
-                format_duration_hms(&(current_time() - self.start_time)),
-                self.client_stats().len(),
-                self.corpus_size(),
-                self.objective_size(),
-                self.total_execs(),
-                self.execs_per_sec_pretty(),
-            );
-            let client = self.client_stats_mut_for(sender_id);
-            for (key, val) in &client.user_monitor {
-                print!(", {key}: {val}");
-            }
-            println!("");
-        }
     }
 }
 

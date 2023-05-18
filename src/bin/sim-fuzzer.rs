@@ -59,13 +59,6 @@ pub fn main() {
                 .help("The directory to read initial inputs from ('seeds')"),
         )
         .arg(
-            Arg::new("logfile")
-                .short('l')
-                .long("logfile")
-                .help("Duplicates all output to this file")
-                .default_value("libafl.log"),
-        )
-        .arg(
             Arg::new("timeout")
                 .short('t')
                 .long("timeout")
@@ -121,7 +114,6 @@ pub fn main() {
             .to_string(),
     );
     if fs::create_dir(&out_dir).is_err() {
-        println!("Out dir at {:?} already exists.", &out_dir);
         if !out_dir.is_dir() {
             println!("Out dir at {:?} is not a valid directory!", &out_dir);
             return;
@@ -202,10 +194,6 @@ fn fuzz(
     let ui : Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new()));
 
     const MAP_SIZE: usize = 2_621_440;
-
-    let logfile = "fuzz.log";
-
-    let _log = RefCell::new(OpenOptions::new().append(true).create(true).open(logfile)?);
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
     let monitor = HWFuzzMonitor::new(ui);
