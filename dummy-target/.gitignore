@@ -2,4 +2,4 @@
 out
 in
 target
-fuzz.log
+*.log

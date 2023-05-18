@@ -1,7 +1,8 @@
 use core::time::Duration;
 use std::{
     env,
-    fs::{self},
+    fs::{self, OpenOptions},
+    io::Write,
     path::PathBuf,
     process,
     sync::{Arc, Mutex},
@@ -35,7 +36,7 @@ use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
 };
-use nix::sys::signal::Signal;
+use nix::{libc::sleep, sys::signal::Signal};
 use riscv_mutator::{
     calibration::DummyCalibration,
     fuzz_ui::FuzzUI,
@@ -48,7 +49,33 @@ use riscv_mutator::{
     program_input::ProgramInput,
 };
 
+use log::{LevelFilter, Metadata, Record};
+
+struct FuzzLogger;
+
+impl log::Log for FuzzLogger {
+    fn enabled(&self, _metadata: &Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &Record) {
+        let logfile = format!("fuzzer-pid_{}.log", process::id());
+        let mut dd = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(logfile)
+            .expect("Failed to open log");
+        dd.write_all(format!("{:?}\n", record).as_bytes())
+            .expect("Failed to write log");
+    }
+
+    fn flush(&self) {}
+}
+static LOGGER: FuzzLogger = FuzzLogger;
+
 pub fn main() {
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info));
+
     let res = match Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
@@ -198,7 +225,6 @@ fn fuzz(
     cores: Cores,
 ) -> Result<(), Error> {
     let ui: Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new()));
-
     const MAP_SIZE: usize = 2_621_440;
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
@@ -212,9 +238,11 @@ fn fuzz(
                           _core_id| {
         // The coverage map shared between observer and executor
         let mut shmem = shmem_provider_client.new_shmem(MAP_SIZE).unwrap();
+
         // let the forkserver know the shmid
         shmem.write_to_env("__AFL_SHM_ID").unwrap();
         let shmem_buf = shmem.as_mut_slice();
+
         // To let know the AFL++ binary that we have a big map
         std::env::set_var("AFL_MAP_SIZE", format!("{}", MAP_SIZE));
 
@@ -268,10 +296,9 @@ fn fuzz(
         let forkserver = ForkserverExecutor::builder()
             .program(executable.clone())
             .debug_child(debug_child)
-            .shmem_provider(&mut shmem_provider_client)
             .parse_afl_cmdline(arguments)
             .coverage_map_size(MAP_SIZE)
-            .is_persistent(true)
+            .is_persistent(false)
             .build_dynamic_map(edges_observer, tuple_list!(time_observer))
             .unwrap();
 
@@ -303,13 +330,14 @@ fn fuzz(
         }
     };
 
-    let conf = EventConfig::AlwaysUnique;
+    let conf = EventConfig::from_build_id();
 
     let launcher = Launcher::builder()
         .shmem_provider(shmem_provider)
         .configuration(conf)
         .cores(&cores)
         .monitor(monitor)
+        .serialize_state(false)
         .run_client(&mut run_client);
 
     let launcher = launcher.stdout_file(Some("/dev/null"));

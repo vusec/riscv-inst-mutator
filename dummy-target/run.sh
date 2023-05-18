@@ -5,7 +5,7 @@ set -e
 mkdir -p in
 mkdir -p out
 
+../../AFL/afl-clang-fast++ -fsanitize=dataflow -O1 -g target.cpp -o target
 cargo build # --release
-../../AFL/afl-clang-fast++ -fsanitize=dataflow -O1 target.cpp -o target
 clear
-../target/debug/sim-fuzzer -i in -o out  ./target @@
+../target/debug/sim-fuzzer -i in -o out ./target @@

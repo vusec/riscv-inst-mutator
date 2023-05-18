@@ -9,8 +9,9 @@ clap = { version = "4.2.7", features = ["derive"] }
 colored = "2.0.0"
 crossterm = "0.26.1"
 hashbrown = "0.13.2"
-libafl = "0.10.0"
+libafl = { version = "0.10.0", features = ["fork"] }
 libm = "0.2.7"
+log = "0.4.17"
 nix = "0.26.2"
 num-traits = "0.2.15"
 postcard = "1.0.4"
