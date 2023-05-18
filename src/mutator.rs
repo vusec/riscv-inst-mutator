@@ -9,10 +9,7 @@ use crate::{
 };
 
 #[cfg(test)]
-use crate::{
-    assembler::assemble_instructions,
-    parser::parse_instructions,
-};
+use crate::{assembler::assemble_instructions, parser::parse_instructions};
 
 /// Supported mutation strategies.
 #[derive(Clone, Copy)]

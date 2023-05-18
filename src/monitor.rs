@@ -1,25 +1,24 @@
 use core::time::Duration;
-use std::{sync::{Arc, Mutex}, borrow::BorrowMut, cell::RefCell, fs::OpenOptions, io::Write};
-
-use libafl::{prelude::{ClientStats, Monitor, format_duration_hms, ClientId}};
-use libafl::{
-    prelude::{current_time},
+use std::{
+    fs::OpenOptions,
+    io::Write,
+    sync::{Arc, Mutex},
 };
+
+use libafl::prelude::current_time;
+use libafl::prelude::{format_duration_hms, ClientId, ClientStats, Monitor};
 
 use crate::fuzz_ui::FuzzUI;
 
-
 /// Tracking monitor during fuzzing.
 #[derive(Clone)]
-pub struct HWFuzzMonitor
-{
+pub struct HWFuzzMonitor {
     start_time: Duration,
     client_stats: Vec<ClientStats>,
-    ui : Arc<Mutex<FuzzUI>>,
+    ui: Arc<Mutex<FuzzUI>>,
 }
 
-impl Monitor for HWFuzzMonitor
-{
+impl Monitor for HWFuzzMonitor {
     /// the client monitor, mutable
     fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
         &mut self.client_stats
@@ -52,8 +51,8 @@ impl Monitor for HWFuzzMonitor
                     data.add_max_coverage(bits as f64);
                 }
             }
-            
-            let mut msg =  format!(
+
+            let mut msg = format!(
                 "time: {}, corpus size: {}, taint violations: {}, execs: {}, exec/sec: {}",
                 format_duration_hms(&(current_time() - self.start_time)),
                 self.corpus_size(),
@@ -69,25 +68,25 @@ impl Monitor for HWFuzzMonitor
             msg += "\n";
             let logfile = "fuzz.log";
             let mut log = OpenOptions::new()
-                .append(true).create(true)
+                .append(true)
+                .create(true)
                 .open(logfile)
                 .expect("Failed to open log");
             log.write_all(msg.as_bytes()).expect("Failed to write log");
         }
-        
+
         let mut ui = self.ui.lock().unwrap();
         ui.try_tick();
     }
 }
 
-impl HWFuzzMonitor
-{
+impl HWFuzzMonitor {
     /// Creates the monitor, using the `current_time` as `start_time`.
-    pub fn new(ui : Arc<Mutex<FuzzUI>>) -> Self {
+    pub fn new(ui: Arc<Mutex<FuzzUI>>) -> Self {
         Self {
             start_time: current_time(),
             client_stats: vec![],
-            ui
+            ui,
         }
     }
 }

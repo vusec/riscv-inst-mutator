@@ -1,13 +1,13 @@
-use core::{cell::RefCell, time::Duration};
+use core::time::Duration;
 use std::{
     env,
-    fs::{self, OpenOptions},
+    fs::{self},
     path::PathBuf,
-    process, sync::{Arc, Mutex},
+    process,
+    sync::{Arc, Mutex},
 };
 
 use clap::{Arg, ArgAction, Command};
-use libafl::{events::ProgressReporter, prelude::{ClientStats, Monitor, format_duration_hms, ClientId, Launcher, LlmpRestartingEventManager, EventConfig, Cores}};
 use libafl::{
     bolts::{
         current_nanos,
@@ -23,7 +23,7 @@ use libafl::{
     fuzzer::{Fuzzer, StdFuzzer},
     mutators::StdScheduledMutator,
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    prelude::{current_time},
+    prelude::current_time,
     schedulers::{
         powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
@@ -31,16 +31,21 @@ use libafl::{
     state::StdState,
     Error, Evaluator,
 };
+use libafl::{
+    events::ProgressReporter,
+    prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
+};
 use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,
+    fuzz_ui::FuzzUI,
     instructions::{
         riscv::{args, rv_i::ADD},
         Argument, Instruction,
     },
+    monitor::HWFuzzMonitor,
     mutator::all_riscv_mutations,
-    program_input::ProgramInput, monitor::HWFuzzMonitor,
-    fuzz_ui::FuzzUI
+    program_input::ProgramInput,
 };
 
 pub fn main() {
@@ -148,9 +153,11 @@ pub fn main() {
 
     let debug_child = res.get_flag("debug-child");
 
-    let cores = Cores::from_cmdline(res.get_one::<String>("cores")
-        .expect("Failed to retrieve --cores arg"))
-        .expect("Failed to parse --cores arg");
+    let cores = Cores::from_cmdline(
+        res.get_one::<String>("cores")
+            .expect("Failed to retrieve --cores arg"),
+    )
+    .expect("Failed to parse --cores arg");
 
     let signal = str::parse::<Signal>(
         &res.get_one::<String>("signal")
@@ -188,10 +195,9 @@ fn fuzz(
     debug_child: bool,
     signal: Signal,
     arguments: &[String],
-    cores : Cores
+    cores: Cores,
 ) -> Result<(), Error> {
-
-    let ui : Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new()));
+    let ui: Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new()));
 
     const MAP_SIZE: usize = 2_621_440;
 
@@ -200,11 +206,10 @@ fn fuzz(
 
     let shmem_provider = UnixShMemProvider::new().expect("Failed to init shared memory");
     let mut shmem_provider_client = shmem_provider.clone();
-    
+
     let mut run_client = |_state: Option<_>,
                           mut mgr: LlmpRestartingEventManager<_, _>,
                           _core_id| {
-
         // The coverage map shared between observer and executor
         let mut shmem = shmem_provider_client.new_shmem(MAP_SIZE).unwrap();
         // let the forkserver know the shmid

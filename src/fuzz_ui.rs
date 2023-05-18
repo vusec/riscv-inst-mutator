@@ -5,8 +5,9 @@ use crossterm::{
 };
 use libafl::prelude::{current_time, format_duration_hms};
 use std::{
+    collections::VecDeque,
     io::{self, Stdout},
-    time::{Duration, Instant}, collections::VecDeque,
+    time::{Duration, Instant},
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -14,24 +15,24 @@ use tui::{
     style::{Color, Modifier, Style},
     symbols,
     text::Span,
-    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, ListItem, List},
+    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, List, ListItem},
     Frame, Terminal,
 };
 
 pub struct FuzzUIData {
-    pub max_coverage : Vec<(f64, f64)>,
-    start_time : std::time::Duration,
-    messages : VecDeque<String>,
+    pub max_coverage: Vec<(f64, f64)>,
+    start_time: std::time::Duration,
+    messages: VecDeque<String>,
 }
 
 impl FuzzUIData {
-    pub fn add_max_coverage(&mut self, value : f64) {
+    pub fn add_max_coverage(&mut self, value: f64) {
         if self.max_coverage.is_empty() || self.max_coverage.last().unwrap().1 < value {
             self.max_coverage.push((self.rel_time_secs(), value))
         }
     }
 
-    pub fn add_message(&mut self, value : String) {
+    pub fn add_message(&mut self, value: String) {
         self.messages.push_front(value);
     }
 
@@ -41,9 +42,9 @@ impl FuzzUIData {
 }
 
 pub struct FuzzUI {
-    terminal : Terminal<CrosstermBackend<Stdout>>,
-    last_tick : Instant,
-    data : FuzzUIData
+    terminal: Terminal<CrosstermBackend<Stdout>>,
+    last_tick: Instant,
+    data: FuzzUIData,
 }
 
 impl FuzzUI {
@@ -51,18 +52,19 @@ impl FuzzUI {
         // setup terminal
         enable_raw_mode().expect("Failed to enable raw terminal mode");
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture).expect("Failed to enable terminal mode");
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
+            .expect("Failed to enable terminal mode");
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend).expect("Failed to create terminal wrapper");
 
         FuzzUI {
             terminal,
-            last_tick : Instant::now(),
-            data : FuzzUIData {
-                max_coverage : Vec::<(f64, f64)>::new(),
-                start_time : current_time(),
-                messages : VecDeque::<String>::new(),
-            }
+            last_tick: Instant::now(),
+            data: FuzzUIData {
+                max_coverage: Vec::<(f64, f64)>::new(),
+                start_time: current_time(),
+                messages: VecDeque::<String>::new(),
+            },
         }
     }
 
@@ -94,7 +96,6 @@ impl FuzzUI {
 }
 
 impl Drop for FuzzUI {
-
     fn drop(&mut self) {
         // restore terminal
         disable_raw_mode().unwrap();
@@ -102,41 +103,37 @@ impl Drop for FuzzUI {
             self.terminal.backend_mut(),
             LeaveAlternateScreen,
             DisableMouseCapture
-        ).unwrap();
+        )
+        .unwrap();
         self.terminal.show_cursor().unwrap();
     }
 }
 
-
-fn ui<B: Backend>(f: &mut Frame<B>, data : &FuzzUIData) {
+fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
     let size = f.size();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Ratio(1, 2),
-                Constraint::Ratio(1, 2),
-            ]
-            .as_ref(),
-        )
+        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)].as_ref())
         .split(size);
 
     // Iterate through all elements in the `items` app and append some debug text to it.
     let items: Vec<ListItem> = data
         .messages
         .iter()
-        .map(|i| {
-            ListItem::new(i.as_str()).style(Style::default())
-        })
+        .map(|i| ListItem::new(i.as_str()).style(Style::default()))
         .collect();
 
-    let items = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("Messages"));
+    let items = List::new(items).block(Block::default().borders(Borders::ALL).title("Messages"));
 
     // We can now render the item list
     f.render_widget(items, chunks[0]);
 
-    let last_slot = data.max_coverage.last().or(Some(&(1.0 as f64, 10.0 as f64))).unwrap().clone();
+    let last_slot = data
+        .max_coverage
+        .last()
+        .or(Some(&(1.0 as f64, 10.0 as f64)))
+        .unwrap()
+        .clone();
 
     let mut coverage = data.max_coverage.clone();
     coverage.push((data.rel_time_secs(), last_slot.1));
@@ -165,12 +162,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, data : &FuzzUIData) {
             Axis::default()
                 .title("Elapsed time (s)")
                 .style(Style::default().fg(Color::Gray))
-                .bounds([0.0,
-                         data.rel_time_secs()])
+                .bounds([0.0, data.rel_time_secs()])
                 .labels(vec![
                     Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
-                    Span::styled(format!("{}", max_time),
-                                 Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        format!("{}", max_time),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
         )
         .y_axis(
@@ -180,8 +178,10 @@ fn ui<B: Backend>(f: &mut Frame<B>, data : &FuzzUIData) {
                 .bounds([0.0, last_slot.1 * 1.1])
                 .labels(vec![
                     Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
-                    Span::styled(format!("{:0}", last_slot.1),
-                                 Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        format!("{:0}", last_slot.1),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
                 ]),
         );
     f.render_widget(chart, chunks[1]);
