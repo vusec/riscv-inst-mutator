@@ -30,6 +30,9 @@ impl FuzzUIData {
         if self.max_coverage.is_empty() || self.max_coverage.last().unwrap().1 < value {
             self.max_coverage.push((self.rel_time_secs(), value))
         }
+        // Only keep the last 200 messages as we won't be able to display
+        // more than that with any reasonable terminal size.
+        self.max_coverage.shrink_to(200);
     }
 
     pub fn add_message(&mut self, value: String) {
