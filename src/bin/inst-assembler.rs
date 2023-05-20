@@ -129,6 +129,8 @@ fn main() -> ExitCode {
         .open(output)
         .expect("Failed to open output file.");
 
+    let mut written : u64 = 0;
+
     let lines = read_lines(input.to_string());
     for line_or_err in lines {
         let line = line_or_err.unwrap();
@@ -145,7 +147,10 @@ fn main() -> ExitCode {
         let out = assemble_instructions(&vec![inst.unwrap()]);
 
         file.write_all(&out).expect("Failed to write output file.");
+        written += 1;
     }
+
+    println!("Wrote {} instructions", written);
 
     ExitCode::SUCCESS
 }
