@@ -325,8 +325,16 @@ fn fuzz(
         let monitor_timeout = Duration::from_secs(1);
 
         loop {
-            fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr)?;
-            last = mgr.maybe_report_progress(&mut state, last, monitor_timeout)?;
+            let fuzz_err = fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr);
+            if fuzz_err.is_err() {
+                log::error!("fuzz_one error: {}", fuzz_err.err().unwrap());
+            }
+            let last_err = mgr.maybe_report_progress(&mut state, last, monitor_timeout);
+            if last_err.is_err() {
+                log::error!("last_err error: {}", last_err.err().unwrap());
+            } else {
+                last = last_err.ok().unwrap()
+            }
         }
     };
 
