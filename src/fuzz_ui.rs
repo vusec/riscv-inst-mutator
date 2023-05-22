@@ -87,8 +87,8 @@ impl FuzzUI {
     }
 
     fn on_tick(&mut self) {
-        if self.terminal.is_some() {
-            self.terminal.draw(|f| ui(f, &self.data)).unwrap();
+        if let Some(term) = self.terminal.as_mut() {
+            term.draw(|f| ui(f, &self.data)).unwrap();
         }
 
         let timeout = Duration::from_millis(1);
@@ -113,16 +113,15 @@ impl FuzzUI {
 
 impl Drop for FuzzUI {
     fn drop(&mut self) {
-        if self.terminal.is_some() {
+        if let Some(term) = self.terminal.as_mut() {
             // restore terminal
             disable_raw_mode().unwrap();
-            execute!(
-                self.terminal.backend_mut(),
+            execute!(term.backend_mut(),
                 LeaveAlternateScreen,
                 DisableMouseCapture
             )
             .unwrap();
-            self.terminal.show_cursor().unwrap();
+            term.show_cursor().unwrap();
         }
     }
 }
