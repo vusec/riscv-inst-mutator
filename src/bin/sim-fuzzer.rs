@@ -125,7 +125,7 @@ pub fn main() {
         )
         .arg(
             Arg::new("signal")
-                .short('s')
+                .short('k')
                 .long("signal")
                 .help("Signal used to stop child")
                 .default_value("SIGKILL"),
