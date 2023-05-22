@@ -117,6 +117,13 @@ pub fn main() {
                 .action(ArgAction::SetTrue),
         )
         .arg(
+            Arg::new("simple-ui")
+                .short('s')
+                .long("no-tui")
+                .help("Use a simple log-based user interace.")
+                .action(ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("signal")
                 .short('s')
                 .long("signal")
@@ -180,6 +187,8 @@ pub fn main() {
 
     let debug_child = res.get_flag("debug-child");
 
+    let simple_ui = res.get_flag("simple-ui");
+
     let cores = Cores::from_cmdline(
         res.get_one::<String>("cores")
             .expect("Failed to retrieve --cores arg"),
@@ -208,6 +217,7 @@ pub fn main() {
         signal,
         &arguments,
         cores,
+        simple_ui,
     )
     .expect("An error occurred while fuzzing");
 }
@@ -223,8 +233,9 @@ fn fuzz(
     signal: Signal,
     arguments: &[String],
     cores: Cores,
+    simple_ui: bool
 ) -> Result<(), Error> {
-    let ui: Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new()));
+    let ui: Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new(simple_ui)));
     const MAP_SIZE: usize = 2_621_440;
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted

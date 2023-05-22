@@ -45,29 +45,40 @@ impl FuzzUIData {
 }
 
 pub struct FuzzUI {
-    terminal: Terminal<CrosstermBackend<Stdout>>,
+    terminal: Option<Terminal<CrosstermBackend<Stdout>>>,
     last_tick: Instant,
     data: FuzzUIData,
+    simple_ui: bool,
 }
 
 impl FuzzUI {
-    pub fn new() -> FuzzUI {
-        // setup terminal
-        enable_raw_mode().expect("Failed to enable raw terminal mode");
-        let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
-            .expect("Failed to enable terminal mode");
-        let backend = CrosstermBackend::new(stdout);
-        let terminal = Terminal::new(backend).expect("Failed to create terminal wrapper");
-
-        FuzzUI {
-            terminal,
-            last_tick: Instant::now(),
-            data: FuzzUIData {
-                max_coverage: Vec::<(f64, f64)>::new(),
-                start_time: current_time(),
-                messages: VecDeque::<String>::new(),
-            },
+    pub fn new(simple_ui : bool) -> FuzzUI {
+        let data = FuzzUIData {
+            max_coverage: Vec::<(f64, f64)>::new(),
+            start_time: current_time(),
+            messages: VecDeque::<String>::new(),
+        };
+        if !simple_ui {
+            // setup terminal
+            enable_raw_mode().expect("Failed to enable raw terminal mode");
+            let mut stdout = io::stdout();
+            execute!(stdout, EnterAlternateScreen, EnableMouseCapture)
+                .expect("Failed to enable terminal mode");
+            let backend = CrosstermBackend::new(stdout);
+            let terminal = Terminal::new(backend).expect("Failed to create terminal wrapper");
+            FuzzUI {
+                terminal: Some(terminal),
+                last_tick: Instant::now(),
+                data,
+                simple_ui
+            }
+        } else {
+            FuzzUI {
+                terminal: None,
+                last_tick: Instant::now(),
+                data,
+                simple_ui
+            }
         }
     }
 
@@ -76,7 +87,9 @@ impl FuzzUI {
     }
 
     fn on_tick(&mut self) {
-        self.terminal.draw(|f| ui(f, &self.data)).unwrap();
+        if self.terminal.is_some() {
+            self.terminal.draw(|f| ui(f, &self.data)).unwrap();
+        }
 
         let timeout = Duration::from_millis(1);
         if crossterm::event::poll(timeout).unwrap() {
@@ -100,15 +113,17 @@ impl FuzzUI {
 
 impl Drop for FuzzUI {
     fn drop(&mut self) {
-        // restore terminal
-        disable_raw_mode().unwrap();
-        execute!(
-            self.terminal.backend_mut(),
-            LeaveAlternateScreen,
-            DisableMouseCapture
-        )
-        .unwrap();
-        self.terminal.show_cursor().unwrap();
+        if self.terminal.is_some() {
+            // restore terminal
+            disable_raw_mode().unwrap();
+            execute!(
+                self.terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )
+            .unwrap();
+            self.terminal.show_cursor().unwrap();
+        }
     }
 }
 
