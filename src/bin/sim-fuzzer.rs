@@ -17,7 +17,7 @@ use libafl::{
         tuples::tuple_list,
         AsMutSlice,
     },
-    corpus::{InMemoryOnDiskCorpus, OnDiskCorpus},
+    corpus::{InMemoryCorpus},
     executors::forkserver::{ForkserverExecutor, TimeoutForkserverExecutor},
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
@@ -36,7 +36,7 @@ use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
 };
-use nix::{libc::sleep, sys::signal::Signal};
+use nix::{sys::signal::Signal};
 use riscv_mutator::{
     calibration::DummyCalibration,
     fuzz_ui::FuzzUI,
@@ -283,8 +283,8 @@ fn fuzz(
         // create a State from scratch
         let mut state = StdState::new(
             StdRand::with_seed(current_nanos()),
-            InMemoryOnDiskCorpus::<ProgramInput>::new(corpus_dir.clone()).unwrap(),
-            OnDiskCorpus::new(objective_dir.clone()).unwrap(),
+            InMemoryCorpus::<ProgramInput>::new(),
+            InMemoryCorpus::new(),
             &mut feedback,
             &mut objective,
         )
