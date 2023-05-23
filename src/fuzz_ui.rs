@@ -48,7 +48,6 @@ pub struct FuzzUI {
     terminal: Option<Terminal<CrosstermBackend<Stdout>>>,
     last_tick: Instant,
     data: FuzzUIData,
-    simple_ui: bool,
 }
 
 impl FuzzUI {
@@ -70,14 +69,12 @@ impl FuzzUI {
                 terminal: Some(terminal),
                 last_tick: Instant::now(),
                 data,
-                simple_ui
             }
         } else {
             FuzzUI {
                 terminal: None,
                 last_tick: Instant::now(),
                 data,
-                simple_ui
             }
         }
     }
