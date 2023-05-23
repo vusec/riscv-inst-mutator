@@ -5,7 +5,7 @@ use std::{
     io::Write,
     path::PathBuf,
     process,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex}, str::Bytes,
 };
 
 use clap::{Arg, ArgAction, Command};
@@ -24,11 +24,11 @@ use libafl::{
     fuzzer::{Fuzzer, StdFuzzer},
     mutators::StdScheduledMutator,
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    prelude::current_time,
+    prelude::{current_time, havoc_mutations, BytesInput},
     schedulers::{
         powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
-    stages::power::StdPowerMutationalStage,
+    stages::{power::StdPowerMutationalStage, CalibrationStage},
     state::StdState,
     Error, Evaluator,
 };
@@ -38,15 +38,8 @@ use libafl::{
 };
 use nix::{sys::signal::Signal};
 use riscv_mutator::{
-    calibration::DummyCalibration,
     fuzz_ui::FuzzUI,
-    instructions::{
-        riscv::{args, rv_i::ADD},
-        Argument, Instruction,
-    },
     monitor::HWFuzzMonitor,
-    mutator::all_riscv_mutations,
-    program_input::ProgramInput,
 };
 
 use log::{LevelFilter, Metadata, Record};
@@ -266,8 +259,8 @@ fn fuzz(
 
         let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
 
-        let calibration = DummyCalibration::new(&map_feedback);
-
+        let calibration = CalibrationStage::new(&map_feedback);
+    
         // Feedback to rate the interestingness of an input
         // This one is composed by two Feedbacks in OR
         let mut feedback = feedback_or!(
@@ -283,14 +276,14 @@ fn fuzz(
         // create a State from scratch
         let mut state = StdState::new(
             StdRand::with_seed(current_nanos()),
-            InMemoryCorpus::<ProgramInput>::new(),
+            InMemoryCorpus::<BytesInput>::new(),
             InMemoryCorpus::new(),
             &mut feedback,
             &mut objective,
         )
         .unwrap();
 
-        let mutator = StdScheduledMutator::new(all_riscv_mutations());
+        let mutator = StdScheduledMutator::new(havoc_mutations());
 
         let power = StdPowerMutationalStage::new(mutator);
 
@@ -315,12 +308,6 @@ fn fuzz(
 
         let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
             .expect("Failed to create the executor.");
-
-        let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
-        let init = ProgramInput::new([add_inst].to_vec());
-        fuzzer
-            .add_input(&mut state, &mut executor, &mut mgr, init)
-            .expect("Failed to run empty input?");
 
         state
             .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
