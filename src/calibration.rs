@@ -125,7 +125,7 @@ where
 
         // Estimate duration based on number of instructions.
         let program: ProgramInput = input.into();
-        let total_time = Duration::from_millis((program.insts().len() + 1) as u64);
+        let total_time = Duration::from_secs((program.insts().len() + 1) as u64);
 
         // If weighted scheduler or powerscheduler is used, update it
         if state.has_metadata::<SchedulerMetadata>() {
