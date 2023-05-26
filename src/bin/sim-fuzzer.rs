@@ -335,6 +335,13 @@ fn fuzz(
         let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
             .expect("Failed to create the executor.");
 
+                let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
+                let init = ProgramInput::new([add_inst].to_vec());
+                fuzzer
+                    .add_input(&mut state, &mut executor, &mut mgr, init)
+                    .expect("Failed to run empty input?");
+
+
         state
             .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
             .unwrap_or_else(|_| {
