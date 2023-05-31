@@ -100,13 +100,7 @@ impl RiscVInstructionMutator {
         let mut program = parse_instructions(input, &instructions::sets::riscv_g());
 
         if self.mutate_with(&mut program, rng, self.mutation).is_none() {
-            // Try again but just add an instruction.
-            // LibAFL is too dumb to properly check the returned result so
-            // let's work around this by just always ensuring we changed
-            // something.
-            if self.mutate_with(&mut program, rng, Mutation::Add).is_none() {
-                return Ok(MutationResult::Skipped);
-            }
+            return Ok(MutationResult::Skipped);
         }
 
         *input = assemble_instructions(&program);
@@ -142,9 +136,15 @@ impl RiscVInstructionMutator {
             }
             Mutation::Replace => {
                 // Keep replacing until we actually changed something.
-                let pos = add_pos(rng)?;
-                let new_inst = self.gen_inst(program, rng);
-                program[pos] = new_inst;
+                loop {
+                    let pos = add_pos(rng)?;
+                    let old_inst = program[pos].clone();
+                    let new_inst = self.gen_inst(program, rng);
+                    if new_inst != old_inst {
+                        program[pos] = new_inst;
+                        break;
+                    }
+                }
             }
             Mutation::ReplaceArg => {
                 let pos = valid_pos(rng)?;
@@ -154,9 +154,15 @@ impl RiscVInstructionMutator {
                 }
                 let old_arg = rng.choose(inst.arguments());
                 let arg_spec = old_arg.spec();
-                // Generate a new argument.
-                let new_arg = InstGenerator::new().generate_argument(rng, arg_spec);
-                inst.set_arg(new_arg);
+                // Keep generating arguments until we find a new one.
+                loop {
+                    let new_arg = InstGenerator::new().generate_argument(rng, arg_spec);
+                    if &new_arg == old_arg {
+                        continue;
+                    }
+                    inst.set_arg(new_arg);
+                    break;
+                }
                 program[pos] = inst;
             }
             Mutation::SwapTwo => {

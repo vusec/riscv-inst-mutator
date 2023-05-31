@@ -17,14 +17,14 @@ use libafl::{
         tuples::tuple_list,
         AsMutSlice,
     },
-    corpus::{InMemoryCorpus},
+    corpus::{OnDiskCorpus, InMemoryOnDiskCorpus, InMemoryCorpus},
     executors::forkserver::{ForkserverExecutor, TimeoutForkserverExecutor},
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     mutators::StdScheduledMutator,
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    prelude::{current_time, InMemoryOnDiskCorpus, OnDiskCorpus, CoreId},
+    prelude::current_time,
     schedulers::{
         powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
@@ -36,6 +36,7 @@ use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
 };
+use libafl::prelude::CoreId;
 use nix::{sys::signal::Signal};
 use riscv_mutator::{
     calibration::DummyCalibration,
@@ -60,15 +61,6 @@ impl log::Log for FuzzLogger {
     }
 
     fn log(&self, record: &Record) {
-        let logfile = format!("fuzzer-pid_{}.log", process::id());
-        let mut dd = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(logfile)
-            .expect("Failed to open log");
-        dd.write_all(format!("{:?}\n", record).as_bytes())
-            .expect("Failed to write log");
-
     }
 
     fn flush(&self) {}
@@ -76,6 +68,8 @@ impl log::Log for FuzzLogger {
 static LOGGER: FuzzLogger = FuzzLogger;
 
 pub fn main() {
+    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info));
+
     let res = match Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
@@ -121,13 +115,6 @@ pub fn main() {
                 .short('s')
                 .long("no-tui")
                 .help("Use a simple log-based user interace.")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("log")
-                .short('l')
-                .long("log")
-                .help("Create log files (which will be very large).")
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -196,11 +183,6 @@ pub fn main() {
 
     let simple_ui = res.get_flag("simple-ui");
 
-    if res.get_flag("log") {
-        log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info))
-            .expect("Failed to enable log.");
-    }
-
     let cores = Cores::from_cmdline(
         res.get_one::<String>("cores")
             .expect("Failed to retrieve --cores arg"),
@@ -258,7 +240,7 @@ fn fuzz(
 
     let mut run_client = |_state: Option<_>,
                           mut mgr: LlmpRestartingEventManager<_, _>,
-                          core_id : CoreId | {
+                          core_id: CoreId | {
         // The coverage map shared between observer and executor
         let mut shmem = shmem_provider_client.new_shmem(MAP_SIZE).unwrap();
 
@@ -289,15 +271,16 @@ fn fuzz(
             TimeFeedback::with_observer(&time_observer)
         );
 
-        // A feedback to choose if an input is a solution or not
-        let mut objective = CrashFeedback::new();
-
         // Create client specific directories to avoid race conditions when
         // writing the corpus to disk.
         let mut corpus_dir = base_corpus_dir.clone();
         corpus_dir.push(format!("{}", core_id.0));
         let mut objective_dir = base_objective_dir.clone();
         objective_dir.push(format!("{}", core_id.0));
+
+
+        // A feedback to choose if an input is a solution or not
+        let mut objective = CrashFeedback::new();
 
         // create a State from scratch
         let mut state = StdState::new(
@@ -338,16 +321,7 @@ fn fuzz(
                 let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
                 let init = ProgramInput::new([add_inst].to_vec());
                 fuzzer
-                    .add_input(&mut state, &mut executor, &mut mgr, init)
-                    .expect("Failed to run empty input?");
-
-
-        state
-            .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
-            .unwrap_or_else(|_| {
-                println!("Failed to load initial corpus at {:?}", &seed_dir);
-                process::exit(0);
-            });
+                    .add_input(&mut state, &mut executor, &mut mgr, init);
 
         // The order of the stages matter!
         let mut stages = tuple_list!(calibration, power);
