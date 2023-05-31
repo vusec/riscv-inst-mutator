@@ -5,7 +5,7 @@ use std::{
     io::Write,
     path::PathBuf,
     process,
-    sync::{Arc, Mutex}, str::Bytes,
+    sync::{Arc, Mutex},
 };
 
 use clap::{Arg, ArgAction, Command};
@@ -17,18 +17,18 @@ use libafl::{
         tuples::tuple_list,
         AsMutSlice,
     },
-    corpus::{InMemoryCorpus},
+    corpus::{OnDiskCorpus, InMemoryOnDiskCorpus, InMemoryCorpus},
     executors::forkserver::{ForkserverExecutor, TimeoutForkserverExecutor},
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
     fuzzer::{Fuzzer, StdFuzzer},
     mutators::StdScheduledMutator,
     observers::{HitcountsMapObserver, StdMapObserver, TimeObserver},
-    prelude::{current_time, havoc_mutations, BytesInput},
+    prelude::current_time,
     schedulers::{
         powersched::PowerSchedule, IndexesLenTimeMinimizerScheduler, StdWeightedScheduler,
     },
-    stages::{power::StdPowerMutationalStage, CalibrationStage},
+    stages::power::StdPowerMutationalStage,
     state::StdState,
     Error, Evaluator,
 };
@@ -36,13 +36,22 @@ use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
 };
+use libafl::prelude::CoreId;
 use nix::{sys::signal::Signal};
 use riscv_mutator::{
+    calibration::DummyCalibration,
     fuzz_ui::FuzzUI,
+    instructions::{
+        riscv::{args, rv_i::ADD},
+        Argument, Instruction,
+    },
     monitor::HWFuzzMonitor,
+    mutator::all_riscv_mutations,
+    program_input::ProgramInput,
 };
 
 use log::{LevelFilter, Metadata, Record};
+use libafl::prelude::CalibrationStage;
 
 struct FuzzLogger;
 
@@ -52,14 +61,6 @@ impl log::Log for FuzzLogger {
     }
 
     fn log(&self, record: &Record) {
-        let logfile = format!("fuzzer-pid_{}.log", process::id());
-        let mut dd = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(logfile)
-            .expect("Failed to open log");
-        dd.write_all(format!("{:?}\n", record).as_bytes())
-            .expect("Failed to write log");
     }
 
     fn flush(&self) {}
@@ -217,8 +218,8 @@ pub fn main() {
 
 /// The actual fuzzer
 fn fuzz(
-    corpus_dir: PathBuf,
-    objective_dir: PathBuf,
+    base_corpus_dir: PathBuf,
+    base_objective_dir: PathBuf,
     seed_dir: &PathBuf,
     timeout: Duration,
     executable: String,
@@ -239,7 +240,7 @@ fn fuzz(
 
     let mut run_client = |_state: Option<_>,
                           mut mgr: LlmpRestartingEventManager<_, _>,
-                          _core_id| {
+                          core_id: CoreId | {
         // The coverage map shared between observer and executor
         let mut shmem = shmem_provider_client.new_shmem(MAP_SIZE).unwrap();
 
@@ -259,8 +260,8 @@ fn fuzz(
 
         let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
 
-        let calibration = CalibrationStage::new(&map_feedback);
-    
+        let calibration = DummyCalibration::new(&map_feedback);
+
         // Feedback to rate the interestingness of an input
         // This one is composed by two Feedbacks in OR
         let mut feedback = feedback_or!(
@@ -270,20 +271,28 @@ fn fuzz(
             TimeFeedback::with_observer(&time_observer)
         );
 
+        // Create client specific directories to avoid race conditions when
+        // writing the corpus to disk.
+        let mut corpus_dir = base_corpus_dir.clone();
+        corpus_dir.push(format!("{}", core_id.0));
+        let mut objective_dir = base_objective_dir.clone();
+        objective_dir.push(format!("{}", core_id.0));
+
+
         // A feedback to choose if an input is a solution or not
         let mut objective = CrashFeedback::new();
 
         // create a State from scratch
         let mut state = StdState::new(
             StdRand::with_seed(current_nanos()),
-            InMemoryCorpus::<BytesInput>::new(),
-            InMemoryCorpus::new(),
+            InMemoryOnDiskCorpus::<ProgramInput>::new(corpus_dir).unwrap(),
+            OnDiskCorpus::new(objective_dir).unwrap(),
             &mut feedback,
             &mut objective,
         )
         .unwrap();
 
-        let mutator = StdScheduledMutator::new(havoc_mutations());
+        let mutator = StdScheduledMutator::new(all_riscv_mutations());
 
         let power = StdPowerMutationalStage::new(mutator);
 
@@ -309,12 +318,10 @@ fn fuzz(
         let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
             .expect("Failed to create the executor.");
 
-        state
-            .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
-            .unwrap_or_else(|_| {
-                println!("Failed to load initial corpus at {:?}", &seed_dir);
-                process::exit(0);
-            });
+                let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
+                let init = ProgramInput::new([add_inst].to_vec());
+                fuzzer
+                    .add_input(&mut state, &mut executor, &mut mgr, init);
 
         // The order of the stages matter!
         let mut stages = tuple_list!(calibration, power);

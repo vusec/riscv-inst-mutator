@@ -105,7 +105,7 @@ where
             .corpus()
             .get(corpus_idx)?
             .borrow_mut()
-            .load_input()?
+            .load_input(state.corpus())?
             .clone();
 
         executor.observers_mut().pre_exec_all(state, &input)?;
