@@ -40,7 +40,7 @@ use libafl::{
 use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,
-    fuzz_ui::FuzzUI,
+    fuzz_ui::{FuzzUI, FUZZING_CAUSE_DIR_VAR},
     instructions::{
         riscv::{args, rv_i::ADD},
         Argument, Instruction,
@@ -158,6 +158,13 @@ pub fn main() {
     }
     let mut crashes = out_dir.clone();
     crashes.push("found");
+
+    let mut cause_dir = out_dir.clone();
+    cause_dir.push("causes");
+    std::fs::create_dir_all(cause_dir.clone()).expect("Failed to create 'causes' directory.");
+
+    std::env::set_var(FUZZING_CAUSE_DIR_VAR, cause_dir.as_os_str());
+
     out_dir.push("queue");
 
     let in_dir = PathBuf::from(
