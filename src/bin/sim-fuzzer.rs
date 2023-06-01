@@ -145,7 +145,6 @@ pub fn main() {
         }
     };
 
-    // For fuzzbench, crashes and finds are inside the same `corpus` directory, in the "queue" and "crashes" subdir.
     let mut out_dir = PathBuf::from(
         res.get_one::<String>("out")
             .expect("The --output parameter is missing")
@@ -158,7 +157,7 @@ pub fn main() {
         }
     }
     let mut crashes = out_dir.clone();
-    crashes.push("crashes");
+    crashes.push("found");
     out_dir.push("queue");
 
     let in_dir = PathBuf::from(
