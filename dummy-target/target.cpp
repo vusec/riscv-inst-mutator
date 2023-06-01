@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <sanitizer/dfsan_interface.h> 
 #include <unistd.h>
+#include <time.h>
 
 char store[10000];
 
@@ -27,12 +28,38 @@ int main(int argc, char **argv) {
     {\
         store[__LINE__] = store[__LINE__ * 4]; \
         printf("Storage %d\n", (int)c); \
-        if (c % 22 != 4) break; \
+        if (c % 22 != 2) break; \
         const char *cause_dir = getenv("FUZZING_CAUSE_DIR"); \
         if (chdir(cause_dir)) perror("Failed to chdir"); \
-        fopen("some cause", "w"); \
+        char buffer[256]; \
+        snprintf(buffer, 200, "%s_%d-%u", "some cause", (int)c, (unsigned)time(NULL)); \
+        fopen(buffer, "w"); \
         abort(); \
     }
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
+BLOCK
 BLOCK
 BLOCK
 BLOCK
