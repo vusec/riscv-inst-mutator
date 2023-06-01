@@ -129,7 +129,7 @@ fn main() -> ExitCode {
         .open(output)
         .expect("Failed to open output file.");
 
-    let mut written : u64 = 0;
+    let mut written: u64 = 0;
 
     let lines = read_lines(input.to_string());
     for line_or_err in lines {

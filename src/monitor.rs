@@ -1,9 +1,5 @@
 use core::time::Duration;
-use std::{
-    fs::OpenOptions,
-    io::Write,
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 use libafl::prelude::current_time;
 use libafl::prelude::{format_duration_hms, ClientId, ClientStats, Monitor};

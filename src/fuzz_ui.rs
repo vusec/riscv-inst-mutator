@@ -51,7 +51,7 @@ pub struct FuzzUI {
 }
 
 impl FuzzUI {
-    pub fn new(simple_ui : bool) -> FuzzUI {
+    pub fn new(simple_ui: bool) -> FuzzUI {
         let data = FuzzUIData {
             max_coverage: Vec::<(f64, f64)>::new(),
             start_time: current_time(),
@@ -113,7 +113,8 @@ impl Drop for FuzzUI {
         if let Some(term) = self.terminal.as_mut() {
             // restore terminal
             disable_raw_mode().unwrap();
-            execute!(term.backend_mut(),
+            execute!(
+                term.backend_mut(),
                 LeaveAlternateScreen,
                 DisableMouseCapture
             )

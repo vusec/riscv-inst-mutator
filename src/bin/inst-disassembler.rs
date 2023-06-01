@@ -27,13 +27,13 @@ fn main() {
         let metadata = fs::metadata(&filename).expect("unable to read metadata");
         let mut buffer = Vec::<u8>::new();
         buffer.resize(metadata.len() as usize, 0);
-    
+
         f.read(&mut buffer).expect("buffer overflow");
-    
+
         let input = postcard::from_bytes::<ProgramInput>(buffer.as_slice());
-    
+
         let program: Vec<Instruction>;
-    
+
         if input.is_err() {
             eprintln!(
                 "Note: Input file not in internal serialized format, assuming plain instructions"
@@ -42,7 +42,7 @@ fn main() {
         } else {
             program = input.unwrap().insts().to_vec();
         }
-    
+
         for inst in program {
             print!(" {}", Colorize::bold(inst.template().name()));
             for op in inst.arguments() {

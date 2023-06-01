@@ -9,6 +9,7 @@ use std::{
 };
 
 use clap::{Arg, ArgAction, Command};
+use libafl::prelude::CoreId;
 use libafl::{
     bolts::{
         current_nanos,
@@ -17,7 +18,7 @@ use libafl::{
         tuples::tuple_list,
         AsMutSlice,
     },
-    corpus::{OnDiskCorpus, InMemoryOnDiskCorpus, InMemoryCorpus},
+    corpus::{InMemoryOnDiskCorpus, OnDiskCorpus},
     executors::forkserver::{ForkserverExecutor, TimeoutForkserverExecutor},
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
@@ -36,8 +37,7 @@ use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
 };
-use libafl::prelude::CoreId;
-use nix::{sys::signal::Signal};
+use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,
     fuzz_ui::FuzzUI,
@@ -51,7 +51,6 @@ use riscv_mutator::{
 };
 
 use log::{LevelFilter, Metadata, Record};
-use libafl::prelude::CalibrationStage;
 
 struct FuzzLogger;
 
@@ -61,6 +60,14 @@ impl log::Log for FuzzLogger {
     }
 
     fn log(&self, record: &Record) {
+        let logfile = format!("fuzzer-pid_{}.log", process::id());
+        let mut dd = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(logfile)
+            .expect("Failed to open log");
+        dd.write_all(format!("{:?}\n", record).as_bytes())
+            .expect("Failed to write log");
     }
 
     fn flush(&self) {}
@@ -68,8 +75,6 @@ impl log::Log for FuzzLogger {
 static LOGGER: FuzzLogger = FuzzLogger;
 
 pub fn main() {
-    log::set_logger(&LOGGER).map(|()| log::set_max_level(LevelFilter::Info));
-
     let res = match Command::new(env!("CARGO_PKG_NAME"))
         .version(env!("CARGO_PKG_VERSION"))
         .arg(
@@ -104,10 +109,10 @@ pub fn main() {
                 .required(true),
         )
         .arg(
-            Arg::new("debug-child")
-                .short('d')
-                .long("debug-child")
-                .help("If not set, the child's stdout and stderror will be redirected to /dev/null")
+            Arg::new("log")
+                .short('l')
+                .long("log")
+                .help("Enable logging to disk (might fillu p disk).")
                 .action(ArgAction::SetTrue),
         )
         .arg(
@@ -179,7 +184,13 @@ pub fn main() {
         .expect("The executable is missing")
         .to_string();
 
-    let debug_child = res.get_flag("debug-child");
+    let debug_child = false;
+
+    if res.get_flag("log") {
+        log::set_logger(&LOGGER)
+            .map(|()| log::set_max_level(LevelFilter::Info))
+            .expect("Failed to setup logger.");
+    }
 
     let simple_ui = res.get_flag("simple-ui");
 
@@ -227,7 +238,7 @@ fn fuzz(
     signal: Signal,
     arguments: &[String],
     cores: Cores,
-    simple_ui: bool
+    simple_ui: bool,
 ) -> Result<(), Error> {
     let ui: Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new(simple_ui)));
     const MAP_SIZE: usize = 2_621_440;
@@ -240,7 +251,7 @@ fn fuzz(
 
     let mut run_client = |_state: Option<_>,
                           mut mgr: LlmpRestartingEventManager<_, _>,
-                          core_id: CoreId | {
+                          core_id: CoreId| {
         // The coverage map shared between observer and executor
         let mut shmem = shmem_provider_client.new_shmem(MAP_SIZE).unwrap();
 
@@ -278,11 +289,10 @@ fn fuzz(
         let mut objective_dir = base_objective_dir.clone();
         objective_dir.push(format!("{}", core_id.0));
 
-
         // A feedback to choose if an input is a solution or not
         let mut objective = CrashFeedback::new();
 
-        // create a State from scratch
+        // Create the fuzz state.
         let mut state = StdState::new(
             StdRand::with_seed(current_nanos()),
             InMemoryOnDiskCorpus::<ProgramInput>::new(corpus_dir).unwrap(),
@@ -318,10 +328,20 @@ fn fuzz(
         let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
             .expect("Failed to create the executor.");
 
-                let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
-                let init = ProgramInput::new([add_inst].to_vec());
-                fuzzer
-                    .add_input(&mut state, &mut executor, &mut mgr, init);
+        // Always add at least one dummy seed otherwise LibAFL crashes...
+        let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
+        let init = ProgramInput::new([add_inst].to_vec());
+        fuzzer
+            .add_input(&mut state, &mut executor, &mut mgr, init)
+            .expect("Failed to load initial inputs");
+
+        // Load the initial seeds from the user directory.
+        state
+            .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
+            .unwrap_or_else(|_| {
+                println!("Failed to load initial corpus at {:?}", &seed_dir);
+                process::exit(0);
+            });
 
         // The order of the stages matter!
         let mut stages = tuple_list!(calibration, power);
