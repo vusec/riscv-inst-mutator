@@ -5,7 +5,7 @@ use crossterm::{
 };
 use libafl::prelude::{current_time, format_duration_hms};
 use std::{
-    collections::VecDeque,
+    collections::{VecDeque, HashMap, HashSet},
     io::{self, Stdout},
     path::Path,
     time::{Duration, Instant, UNIX_EPOCH},
@@ -127,6 +127,59 @@ impl Drop for FuzzUI {
     }
 }
 
+struct TestCaseData {
+    cause : String,
+    time_to_exposure : Duration,
+}
+
+fn summarize_findings(data: &FuzzUIData) -> Vec::<String> {
+
+    let cause_dir =
+        std::env::var(FUZZING_CAUSE_DIR_VAR).expect("Driver failed to set cause env var?");
+
+    let causes = std::fs::read_dir(Path::new(&cause_dir)).expect("Failed to read causes dir");
+
+    let mut case_list = Vec::<TestCaseData>::new();
+    for cause_or_err in causes {
+        let cause = cause_or_err.unwrap();
+        let creation_time = cause.metadata().unwrap().created().unwrap();
+        let creation_unix_time = creation_time.duration_since(UNIX_EPOCH).unwrap();
+        let diff_time = creation_unix_time - data.start_time;
+
+        let filename = cause.file_name().into_string().unwrap();
+        let cause_str = filename.split("-").nth(0);
+
+        case_list.push(TestCaseData {
+            cause: cause_str.or(Some("Bad cause name")).unwrap().to_string(),
+            time_to_exposure: diff_time
+        })
+    }
+
+    let mut dupes = HashMap::<String, u64>::new();
+    for case in &case_list {
+        dupes.insert(case.cause.clone(), dupes.get(&case.cause).or(Some(&0)).unwrap() + 1);
+    }
+
+    case_list.sort_by_key(|t| t.time_to_exposure);
+
+    let mut emitted_causes = HashSet::<String>::new();
+
+    let mut result = Vec::<String>::new();
+    for case in &case_list {
+        if !emitted_causes.insert(case.cause.clone()) {
+            break;
+        }
+        let res = format!(
+            "{} (TTE: {}) Dupes: {}",
+            case.cause,
+            format_duration_hms(&case.time_to_exposure),
+            dupes.get(&case.cause).unwrap()
+        );
+        result.push(res);
+    }
+    result
+}
+
 fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
     let size = f.size();
     let chunks = Layout::default()
@@ -136,35 +189,16 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
 
     let top_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(10), Constraint::Length(40)])
+        .constraints([Constraint::Min(10), Constraint::Length(50)])
         .split(chunks[0]);
 
-    let cause_dir =
-        std::env::var(FUZZING_CAUSE_DIR_VAR).expect("Driver failed to set cause env var?");
-
-    let causes = std::fs::read_dir(Path::new(&cause_dir)).expect("Failed to read causes dir");
-
-    let mut cause_list = Vec::<String>::new();
-    for cause_or_err in causes {
-        let cause = cause_or_err.unwrap();
-        let creation_time = cause.metadata().unwrap().created().unwrap();
-        let creation_unix_time = creation_time.duration_since(UNIX_EPOCH).unwrap();
-        let diff_time = creation_unix_time - data.start_time;
-        let res = format!(
-            "{} ({} s)",
-            cause.file_name().into_string().unwrap(),
-            format_duration_hms(&diff_time)
-        );
-
-        cause_list.push(res);
-    }
+    let cause_list = summarize_findings(data);
 
     let findings: Vec<ListItem> = cause_list
         .iter()
         .map(|i| ListItem::new(i.as_str()).style(Style::default()))
         .collect();
-    let findings_list =
-        List::new(findings).block(Block::default().borders(Borders::ALL).title("Findings"));
+    let findings_list = List::new(findings).block(Block::default().borders(Borders::ALL).title("Findings"));
 
     f.render_widget(findings_list, top_chunks[1]);
 
