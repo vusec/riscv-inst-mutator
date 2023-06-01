@@ -7,7 +7,8 @@ use libafl::prelude::{current_time, format_duration_hms};
 use std::{
     collections::VecDeque,
     io::{self, Stdout},
-    time::{Duration, Instant},
+    path::Path,
+    time::{Duration, Instant, UNIX_EPOCH},
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -19,8 +20,11 @@ use tui::{
     Frame, Terminal,
 };
 
+pub const FUZZING_CAUSE_DIR_VAR: &'static str = "FUZZING_CAUSE_DIR";
+
 pub struct FuzzUIData {
     pub max_coverage: Vec<(f64, f64)>,
+    // idiotic libafl folks decided that time point = duration (???)
     start_time: std::time::Duration,
     messages: VecDeque<String>,
 }
@@ -128,8 +132,42 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
     let size = f.size();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)].as_ref())
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(size);
+
+    let top_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(10), Constraint::Length(40)])
+        .split(chunks[0]);
+
+    let cause_dir =
+        std::env::var(FUZZING_CAUSE_DIR_VAR).expect("Driver failed to set cause env var?");
+
+    let causes = std::fs::read_dir(Path::new(&cause_dir)).expect("Failed to read causes dir");
+
+    let mut cause_list = Vec::<String>::new();
+    for cause_or_err in causes {
+        let cause = cause_or_err.unwrap();
+        let creation_time = cause.metadata().unwrap().created().unwrap();
+        let creation_unix_time = creation_time.duration_since(UNIX_EPOCH).unwrap();
+        let diff_time = creation_unix_time - data.start_time;
+        let res = format!(
+            "{} ({} s)",
+            cause.file_name().into_string().unwrap(),
+            format_duration_hms(&diff_time)
+        );
+
+        cause_list.push(res);
+    }
+
+    let findings: Vec<ListItem> = cause_list
+        .iter()
+        .map(|i| ListItem::new(i.as_str()).style(Style::default()))
+        .collect();
+    let findings_list =
+        List::new(findings).block(Block::default().borders(Borders::ALL).title("Findings"));
+
+    f.render_widget(findings_list, top_chunks[1]);
 
     // Iterate through all elements in the `items` app and append some debug text to it.
     let items: Vec<ListItem> = data
@@ -141,7 +179,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
     let items = List::new(items).block(Block::default().borders(Borders::ALL).title("Messages"));
 
     // We can now render the item list
-    f.render_widget(items, chunks[0]);
+    f.render_widget(items, top_chunks[0]);
 
     let last_slot = data
         .max_coverage
