@@ -334,20 +334,22 @@ fn fuzz(
         let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
             .expect("Failed to create the executor.");
 
+        // Load the initial seeds from the user directory.
+        // state
+        //     .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
+        //     .unwrap_or_else(|_| {
+        //         println!("Failed to load initial corpus at {:?}", &seed_dir);
+        //         process::exit(0);
+        //     });
+
         // Always add at least one dummy seed otherwise LibAFL crashes...
+        // Do this after loading the seed folder as LibAFL otherwise also crashes...
         let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
         let init = ProgramInput::new([add_inst].to_vec());
         fuzzer
             .add_input(&mut state, &mut executor, &mut mgr, init)
             .expect("Failed to load initial inputs");
 
-        // Load the initial seeds from the user directory.
-        state
-            .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
-            .unwrap_or_else(|_| {
-                println!("Failed to load initial corpus at {:?}", &seed_dir);
-                process::exit(0);
-            });
 
         // The order of the stages matter!
         let mut stages = tuple_list!(calibration, power);
