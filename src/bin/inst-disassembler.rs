@@ -1,8 +1,4 @@
-use std::{
-    fs::{self, File},
-    io::Read,
-};
-
+use std::fs;
 use clap::Parser;
 use colored::Colorize;
 use crossterm::style::Stylize;
@@ -10,7 +6,6 @@ use riscv_mutator::instructions::Instruction;
 use riscv_mutator::program_input::ProgramInput;
 use riscv_mutator::{instructions, parser};
 
-/// Simple program to greet a person
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -26,14 +21,8 @@ fn main() {
         if multiple_files {
             println!("{}:", filename.clone().bold().blue());
         }
-        let mut f = File::open(&filename).expect("no file found");
 
-        let metadata = fs::metadata(&filename).expect("unable to read metadata");
-        let mut buffer = Vec::<u8>::new();
-        buffer.resize(metadata.len() as usize, 0);
-
-        f.read(&mut buffer).expect("buffer overflow");
-
+        let buffer = fs::read(filename).expect("Failed to read file");
         let input = postcard::from_bytes::<ProgramInput>(buffer.as_slice());
 
         let program: Vec<Instruction>;
