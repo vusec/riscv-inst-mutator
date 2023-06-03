@@ -20,8 +20,12 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
+    let multiple_files = args.input.len() != 1;
     for filename in args.input {
-        println!("{}:", filename.clone().bold().blue());
+        // Print the file name when printing multiple files.
+        if multiple_files {
+            println!("{}:", filename.clone().bold().blue());
+        }
         let mut f = File::open(&filename).expect("no file found");
 
         let metadata = fs::metadata(&filename).expect("unable to read metadata");
