@@ -147,7 +147,7 @@ fn summarize_findings(data: &FuzzUIData) -> Vec::<String> {
         let diff_time = creation_unix_time - data.start_time;
 
         let filename = cause.file_name().into_string().unwrap();
-        let cause_str = filename.split("-").nth(0);
+        let cause_str = filename.split("%").nth(0);
 
         case_list.push(TestCaseData {
             cause: cause_str.or(Some("Bad cause name")).unwrap().to_string(),
@@ -189,7 +189,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
 
     let top_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(10), Constraint::Length(50)])
+        .constraints([Constraint::Min(10), Constraint::Length(60)])
         .split(chunks[0]);
 
     let cause_list = summarize_findings(data);
