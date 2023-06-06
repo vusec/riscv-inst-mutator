@@ -1,6 +1,5 @@
 use core::time::Duration;
 use std::{
-    env,
     fs::{self, OpenOptions},
     io::Write,
     path::PathBuf,
@@ -8,7 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use clap::{Arg, ArgAction, Command};
+use clap::{Parser};
 use libafl::prelude::CoreId;
 use libafl::{
     bolts::{
@@ -74,82 +73,34 @@ impl log::Log for FuzzLogger {
 }
 static LOGGER: FuzzLogger = FuzzLogger;
 
-pub fn main() {
-    let res = match Command::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .arg(
-            Arg::new("out")
-                .short('o')
-                .long("output")
-                .help("The directory to place finds in ('corpus')"),
-        )
-        .arg(
-            Arg::new("in")
-                .short('i')
-                .long("input")
-                .help("The directory to read initial inputs from ('seeds')"),
-        )
-        .arg(
-            Arg::new("timeout")
-                .short('t')
-                .long("timeout")
-                .help("Timeout for each individual execution, in milliseconds")
-                .default_value("60000"),
-        )
-        .arg(
-            Arg::new("cores")
-                .short('c')
-                .long("cores")
-                .help("Which cores to use ('all', or '1', or '1-2,3-4'")
-                .default_value("all"),
-        )
-        .arg(
-            Arg::new("exec")
-                .help("The instrumented binary we want to fuzz")
-                .required(true),
-        )
-        .arg(
-            Arg::new("log")
-                .short('l')
-                .long("log")
-                .help("Enable logging to disk (might fillu p disk).")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("simple-ui")
-                .short('s')
-                .long("no-tui")
-                .help("Use a simple log-based user interace.")
-                .action(ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("signal")
-                .short('k')
-                .long("signal")
-                .help("Signal used to stop child")
-                .default_value("SIGKILL"),
-        )
-        .arg(Arg::new("arguments"))
-        .try_get_matches()
-    {
-        Ok(res) => res,
-        Err(err) => {
-            println!(
-                "Syntax: {}, [-x dictionary] -o corpus_dir -i seed_dir\n{:?}",
-                env::current_exe()
-                    .unwrap_or_else(|_| "fuzzer".into())
-                    .to_string_lossy(),
-                err,
-            );
-            return;
-        }
-    };
 
-    let mut out_dir = PathBuf::from(
-        res.get_one::<String>("out")
-            .expect("The --output parameter is missing")
-            .to_string(),
-    );
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    arguments: Vec<String>,
+    #[arg(short, long, default_value = "in")]
+    input: String,
+    #[arg(short, long, default_value = "out")]
+    out: String,
+    #[arg(short, long, default_value_t = 60000)]
+    timeout: u64,
+    #[arg(short, long, default_value = "all")]
+    cores: String,
+    #[arg(short, long, default_value_t = false)]
+    log: bool,
+    #[arg(short, long, default_value_t = false)]
+    simple_ui: bool,
+}
+
+pub fn main() {
+    let args = Args::parse();
+    if args.log {
+        log::set_logger(&LOGGER)
+            .map(|()| log::set_max_level(LevelFilter::Info))
+            .expect("Failed to setup logger.");
+    }
+
+    let mut out_dir = PathBuf::from(args.out);
     if fs::create_dir(&out_dir).is_err() {
         if !out_dir.is_dir() {
             println!("Out dir at {:?} is not a valid directory!", &out_dir);
@@ -167,56 +118,21 @@ pub fn main() {
 
     out_dir.push("queue");
 
-    let in_dir = PathBuf::from(
-        res.get_one::<String>("in")
-            .expect("The --input parameter is missing")
-            .to_string(),
-    );
+    let in_dir = PathBuf::from(args.input);
     if !in_dir.is_dir() {
         println!("In dir at {:?} is not a valid directory!", &in_dir);
         return;
     }
 
-    let timeout = Duration::from_millis(
-        res.get_one::<String>("timeout")
-            .unwrap()
-            .to_string()
-            .parse()
-            .expect("Could not parse timeout in milliseconds"),
-    );
-
-    let executable = res
-        .get_one::<String>("exec")
-        .expect("The executable is missing")
-        .to_string();
-
+    let timeout = Duration::from_millis(args.timeout);
+    let executable = args.arguments.first().unwrap();
     let debug_child = false;
+    let simple_ui = args.simple_ui;
+    let cores = Cores::from_cmdline(&args.cores.to_string()).expect("Failed to parse --cores arg");
+    let signal = str::parse::<Signal>("SIGKILL").unwrap();
+    let arguments = &args.arguments[1..];
 
-    if res.get_flag("log") {
-        log::set_logger(&LOGGER)
-            .map(|()| log::set_max_level(LevelFilter::Info))
-            .expect("Failed to setup logger.");
-    }
-
-    let simple_ui = res.get_flag("simple-ui");
-
-    let cores = Cores::from_cmdline(
-        res.get_one::<String>("cores")
-            .expect("Failed to retrieve --cores arg"),
-    )
-    .expect("Failed to parse --cores arg");
-
-    let signal = str::parse::<Signal>(
-        &res.get_one::<String>("signal")
-            .expect("The --signal parameter is missing")
-            .to_string(),
-    )
-    .unwrap();
-
-    let arguments = res
-        .get_many::<String>("arguments")
-        .map(|v| v.map(std::string::ToString::to_string).collect::<Vec<_>>())
-        .unwrap_or_default();
+    println!("Target: {:#?}", arguments);
 
     fuzz(
         out_dir,
@@ -239,7 +155,7 @@ fn fuzz(
     base_objective_dir: PathBuf,
     seed_dir: &PathBuf,
     timeout: Duration,
-    executable: String,
+    executable: &String,
     debug_child: bool,
     signal: Signal,
     arguments: &[String],
