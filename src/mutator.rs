@@ -21,8 +21,6 @@ pub enum Mutation {
     // Replaces an argument of an instruction with a different one.
     ReplaceArg,
     // Repeats one instruction several times.
-    RepeatOne,
-    // Repeats one instruction several times.
     RepeatSeveral,
     // Swaps two single instructions.
     SwapTwo,
@@ -172,10 +170,6 @@ impl RiscVInstructionMutator {
                 program[pos] = program[pos2].clone();
                 program[pos2] = backup;
             }
-            Mutation::RepeatOne => {
-                let pos = valid_pos(rng)?;
-                program.insert(pos, program[pos].clone());
-            }
             Mutation::RepeatSeveral => {
                 let pos = valid_pos(rng)?;
                 for _ in 0..(rng.below(32) + 1) {
@@ -208,7 +202,7 @@ pub fn all_riscv_mutations() -> RiscVMutationList {
         RiscVInstructionMutator::new(Mutation::Remove),
         RiscVInstructionMutator::new(Mutation::ReplaceArg),
         RiscVInstructionMutator::new(Mutation::Replace),
-        RiscVInstructionMutator::new(Mutation::RepeatOne),
+        RiscVInstructionMutator::new(Mutation::RepeatSeveral),
         RiscVInstructionMutator::new(Mutation::SwapTwo),
     )
 }
@@ -419,7 +413,7 @@ mod tests {
     #[test]
     fn mutate_repeat() {
         // Test that 'RepeatOne' only adds instructions.
-        let mut setup = TestSetup::new(Mutation::RepeatOne);
+        let mut setup = TestSetup::new(Mutation::RepeatSeveral);
 
         for _ in 0..TRIES {
             setup.fill_random_inst();
@@ -433,7 +427,7 @@ mod tests {
     #[test]
     fn mutate_repeat_empty() {
         // Test that 'RepeatOne' doesn't do anything on empty inputs.
-        let mut setup = TestSetup::new(Mutation::RepeatOne);
+        let mut setup = TestSetup::new(Mutation::RepeatSeveral);
 
         for _ in 0..TRIES {
             // Should never succeed on empty inputs.
