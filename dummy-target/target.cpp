@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         const char *cause_dir = getenv("FUZZING_CAUSE_DIR"); \
         if (chdir(cause_dir)) perror("Failed to chdir"); \
         char buffer[256]; \
-        snprintf(buffer, 200, "%s_%d-%u", "some cause", (int)c, (unsigned)time(NULL)); \
+        snprintf(buffer, 200, "%s_%d%%%u", "some cause", (int)c, (unsigned)time(NULL)); \
         fopen(buffer, "w"); \
         abort(); \
     }
