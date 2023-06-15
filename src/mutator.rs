@@ -4,7 +4,7 @@ use libafl::prelude::*;
 
 use crate::{
     generator::InstGenerator,
-    instructions::{self, Instruction},
+    instructions::{self, Instruction, riscv::{args, rv_i::{JALR, AUIPC}}, Argument},
     program_input::HasProgramInput,
 };
 
@@ -26,6 +26,7 @@ pub enum Mutation {
     SwapTwo,
     // Removes a single instruction.
     Remove,
+    Snippet,
 }
 
 /// Mutator for RISC-V instructions.
@@ -95,7 +96,12 @@ impl RiscVInstructionMutator {
         rng: &mut Rng,
         input: &mut Vec<u8>,
     ) -> Result<MutationResult, Error> {
-        let mut program = parse_instructions(input, &instructions::sets::riscv_g());
+
+        let program_or_err = parse_instructions(input, &instructions::sets::riscv_g());
+        if program_or_err.is_err() {
+            return Err(Error::illegal_argument(program_or_err.err().unwrap()));
+        }
+        let mut program = program_or_err.unwrap();
 
         if self.mutate_with(&mut program, rng, self.mutation).is_none() {
             return Ok(MutationResult::Skipped);
@@ -103,6 +109,35 @@ impl RiscVInstructionMutator {
 
         *input = assemble_instructions(&program);
         Ok(MutationResult::Mutated)
+    }
+
+    fn make_snippet<Rng: Rand>(&self, rng: &mut Rng) -> Vec<Instruction> {
+        // Creates:
+        //   auipc x1, 0
+        //   jalr x1, random_offset(x1)
+        let make_call = |rng: &mut Rng| -> Vec<Instruction> {
+            let offset = rng.below(32) as u32;
+            vec![
+                Instruction::new(&AUIPC, vec![Argument::new(&args::RD, 1),
+                                              Argument::new(&args::IMM20, 0)]),
+                Instruction::new(&JALR, vec![Argument::new(&args::RD, 1),
+                                             Argument::new(&args::RS1, 1),
+                                             Argument::new(&args::IMM12, offset)])
+            ]
+        };
+        // Creates:
+        //   jalr x0, 0(x1)
+        let make_ret = |rng: &mut Rng| -> Vec<Instruction> {
+            vec![
+                Instruction::new(&JALR, vec![Argument::new(&args::RD, 0),
+                                             Argument::new(&args::RS1, 1),
+                                             Argument::new(&args::IMM12, 0)])
+            ]
+        };
+
+        let options = [make_call, make_ret];
+        let selected : usize = rng.below(options.len() as u64) as usize;
+        return options[selected](rng);
     }
 
     ///
@@ -114,11 +149,11 @@ impl RiscVInstructionMutator {
     ) -> Option<()> {
         let program_empty = program.is_empty();
         let program_len = program.len();
-        let add_pos = |rng: &mut Rng| -> Option<usize> {
+        let add_pos = |rng: &mut Rng| -> usize {
             if program_empty {
-                return None;
+                return 0;
             }
-            Some(rng.below(max(program_len as u64, 1)) as usize)
+            rng.below(max(program_len as u64, 1)) as usize
         };
 
         let valid_pos = |rng: &mut Rng| -> Option<usize> {
@@ -130,12 +165,12 @@ impl RiscVInstructionMutator {
 
         match mutation {
             Mutation::Add => {
-                program.insert(add_pos(rng)?, self.gen_inst(program, rng));
+                program.insert(add_pos(rng), self.gen_inst(program, rng));
             }
             Mutation::Replace => {
                 // Keep replacing until we actually changed something.
                 loop {
-                    let pos = add_pos(rng)?;
+                    let pos = valid_pos(rng)?;
                     let old_inst = program[pos].clone();
                     let new_inst = self.gen_inst(program, rng);
                     if new_inst != old_inst {
@@ -179,6 +214,13 @@ impl RiscVInstructionMutator {
             Mutation::Remove => {
                 program.remove(valid_pos(rng)?);
             }
+            Mutation::Snippet => {
+                let pos = add_pos(rng);
+                let mut snippet = self.make_snippet(rng);
+                while !snippet.is_empty() {
+                    program.insert(pos, snippet.pop().unwrap());
+                }
+            }
         }
         Some(())
     }
@@ -187,6 +229,7 @@ impl RiscVInstructionMutator {
 /// All the types of the function below repeated.
 /// (A memorial to Rust's generic programming capabilities).
 pub type RiscVMutationList = tuple_list_type!(
+    RiscVInstructionMutator,
     RiscVInstructionMutator,
     RiscVInstructionMutator,
     RiscVInstructionMutator,
@@ -204,6 +247,7 @@ pub fn all_riscv_mutations() -> RiscVMutationList {
         RiscVInstructionMutator::new(Mutation::Replace),
         RiscVInstructionMutator::new(Mutation::RepeatSeveral),
         RiscVInstructionMutator::new(Mutation::SwapTwo),
+        RiscVInstructionMutator::new(Mutation::Snippet),
     )
 }
 
@@ -220,6 +264,8 @@ mod tests {
     use crate::instructions;
     use crate::instructions::Instruction;
     use crate::instructions::InstructionTemplate;
+    use crate::instructions::riscv::rv_i::AUIPC;
+    use crate::instructions::riscv::rv_i::JALR;
     use crate::parser::parse_instructions;
 
     use super::Mutation;
@@ -254,8 +300,8 @@ mod tests {
         /// Calculates how many instructions have changed.
         fn update_changed(&mut self) {
             self.changed_insts = 0;
-            let new_insts = parse_instructions(&self.data, &instructions::sets::riscv_g());
-            let old_insts = parse_instructions(&self.old_data, &instructions::sets::riscv_g());
+            let new_insts = parse_instructions(&self.data, &instructions::sets::riscv_g()).unwrap();
+            let old_insts = parse_instructions(&self.old_data, &instructions::sets::riscv_g()).unwrap();
             for i in 0..min(new_insts.len(), old_insts.len()) {
                 if new_insts[i] != old_insts[i] {
                     self.changed_insts += 1;
@@ -297,7 +343,7 @@ mod tests {
 
         /// Returns the parsed instructions in the current buffer.
         fn parsed_insts(&self) -> Vec<Instruction> {
-            parse_instructions(&self.data, &instructions::sets::riscv_g())
+            parse_instructions(&self.data, &instructions::sets::riscv_g()).unwrap()
         }
     }
 
@@ -432,6 +478,25 @@ mod tests {
         for _ in 0..TRIES {
             // Should never succeed on empty inputs.
             assert!(!setup.mutate());
+        }
+    }
+
+    #[test]
+    fn mutate_snippet() {
+        for _ in 0..TRIES {
+            let mut setup = TestSetup::new(Mutation::Snippet);
+            assert!(setup.mutate());
+
+            let insts = setup.parsed_insts();
+            let first_inst = insts[0].clone();
+            if first_inst.template() == &AUIPC {
+                eprintln!("{:?}", insts);
+                assert_eq!(insts.len(), 2);
+                let jump = insts[1].clone();
+                assert_eq!(jump.template(), &JALR);
+            } else {
+                assert_eq!(insts.len(), 1);
+            }
         }
     }
 }

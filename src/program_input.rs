@@ -63,7 +63,7 @@ impl<'de> Visitor<'de> for ProgramInputVisitor {
         E: serde::de::Error,
     {
         Ok(ProgramInput {
-            insts: parse_instructions(&v.to_vec(), &instructions::riscv::all()),
+            insts: parse_instructions(&v.to_vec(), &instructions::riscv::all()).unwrap(),
         })
     }
 }
