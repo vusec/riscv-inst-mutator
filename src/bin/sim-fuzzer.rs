@@ -41,7 +41,7 @@ use riscv_mutator::{
     calibration::DummyCalibration,
     fuzz_ui::{FuzzUI, FUZZING_CAUSE_DIR_VAR},
     instructions::{
-        riscv::{args, rv_i::ADD},
+        riscv::{args, rv_i::{ADD, AUIPC}, rv64_i::LD},
         Argument, Instruction,
     },
     monitor::HWFuzzMonitor,
@@ -260,8 +260,12 @@ fn fuzz(
 
         // Always add at least one dummy seed otherwise LibAFL crashes...
         // Do this after loading the seed folder as LibAFL otherwise also crashes...
-        let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
-        let init = ProgramInput::new([add_inst].to_vec());
+        let auipc = Instruction::new(&AUIPC, vec![Argument::new(&args::RD, 1u32)]);
+        let load = Instruction::new(&LD, vec![Argument::new(&args::RD, 2u32),
+                                              Argument::new(&args::RS1, 1u32)]);
+        let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 2u32)]);
+
+        let init = ProgramInput::new([auipc, load, add_inst].to_vec());
         fuzzer
             .add_input(&mut state, &mut executor, &mut mgr, init)
             .expect("Failed to load initial inputs");
