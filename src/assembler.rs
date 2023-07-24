@@ -52,7 +52,7 @@ mod tests {
         assert_eq!(assembled.len(), 8);
 
         // Parse the output and check that we get the same result.
-        let parsed = parse_instructions(&assembled, &instructions::sets::riscv_g());
+        let parsed = parse_instructions(&assembled, &instructions::sets::riscv_g()).unwrap();
         assert_eq!(insts, parsed);
     }
 
@@ -75,9 +75,11 @@ mod tests {
             }
 
             let assembled = assemble_instructions(&insts);
+
             // Parse the output and check that we get the same result.
-            let parsed = parse_instructions(&assembled, &instructions::sets::riscv_g());
-            assert_eq!(insts, parsed);
+            let parsed = parse_instructions(&assembled, &instructions::sets::riscv_g())
+                .expect(format!("{}: Failed to parse instructions: {:?}", i, insts).as_str());
+            assert_eq!(insts, parsed, "Instructions: {:?}", insts);
         }
     }
 }

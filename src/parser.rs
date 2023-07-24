@@ -3,8 +3,12 @@ use crate::instructions::{Instruction, InstructionTemplate};
 pub fn parse_instructions(
     input: &Vec<u8>,
     insts: &Vec<&'static InstructionTemplate>,
-) -> Vec<Instruction> {
+) -> Result<Vec::<Instruction>, String> {
     let mut result = Vec::<Instruction>::new();
+
+    if input.len() % 4 != 0 {
+        return Err(format!("Tailing garbage in instructions: {:?}", input));
+    }
 
     for i in (0..input.len()).step_by(4) {
         if i + 4 > input.len() {
@@ -12,15 +16,23 @@ pub fn parse_instructions(
         }
         let data = u32::from_ne_bytes(input[i..i + 4].try_into().unwrap());
 
+        let mut found = false;
         for inst in insts {
             let maybe_parsed = inst.decode(data);
             if let Some(..) = maybe_parsed {
+                found = true;
                 result.push(maybe_parsed.unwrap());
+                break;
             }
         }
+        if found {
+            continue;
+        }
+
+        return Err(format!("Failed to parse bytes as instruction: {:x}", data));
     }
 
-    result
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -43,7 +55,10 @@ mod tests {
             }
 
             let parsed = parse_instructions(&input, &instructions::sets::riscv_g());
-            assert!(parsed.len() * 4 <= input.len());
+            if parsed.is_err() {
+                continue;
+            }
+            assert_eq!(parsed.unwrap().len() * 4, input.len());
         }
     }
 }

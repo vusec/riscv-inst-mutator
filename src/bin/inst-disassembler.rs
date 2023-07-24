@@ -31,7 +31,8 @@ fn main() {
             eprintln!(
                 "Note: Input file not in internal serialized format, assuming plain instructions"
             );
-            program = parser::parse_instructions(&buffer, &instructions::sets::riscv_g());
+            program = parser::parse_instructions(&buffer, &instructions::sets::riscv_g())
+                .expect("Failed to parse instructions");
         } else {
             program = input.unwrap().insts().to_vec();
         }
