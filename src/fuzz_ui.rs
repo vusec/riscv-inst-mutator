@@ -228,7 +228,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
     let max_time = format_duration_hms(&(current_time() - data.start_time));
 
     let datasets = vec![Dataset::default()
-        .name("Coverage")
+        .name("")
         .marker(symbols::Marker::Braille)
         .style(Style::default().fg(Color::Yellow))
         .graph_type(GraphType::Line)
@@ -238,7 +238,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
         .block(
             Block::default()
                 .title(Span::styled(
-                    "Maximum reached coverage",
+                    "Coverage",
                     Style::default()
                         .fg(Color::Cyan)
                         .add_modifier(Modifier::BOLD),
@@ -260,9 +260,9 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
         )
         .y_axis(
             Axis::default()
-                .title("Number of bytes in coverage map")
+                .title("Coverage")
                 .style(Style::default().fg(Color::Gray))
-                .bounds([0.0, last_slot.1 * 1.1])
+                .bounds([0.0, last_slot.1 * 1.2])
                 .labels(vec![
                     Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
                     Span::styled(
