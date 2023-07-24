@@ -95,7 +95,12 @@ impl RiscVInstructionMutator {
         rng: &mut Rng,
         input: &mut Vec<u8>,
     ) -> Result<MutationResult, Error> {
-        let mut program = parse_instructions(input, &instructions::sets::riscv_g());
+
+        let program_or_err = parse_instructions(input, &instructions::sets::riscv_g());
+        if program_or_err.is_err() {
+            return Err(Error::illegal_argument(program_or_err.err().unwrap()));
+        }
+        let mut program = program_or_err.unwrap();
 
         if self.mutate_with(&mut program, rng, self.mutation).is_none() {
             return Ok(MutationResult::Skipped);
@@ -114,11 +119,11 @@ impl RiscVInstructionMutator {
     ) -> Option<()> {
         let program_empty = program.is_empty();
         let program_len = program.len();
-        let add_pos = |rng: &mut Rng| -> Option<usize> {
+        let add_pos = |rng: &mut Rng| -> usize {
             if program_empty {
-                return None;
+                return 0;
             }
-            Some(rng.below(max(program_len as u64, 1)) as usize)
+            rng.below(max(program_len as u64, 1)) as usize
         };
 
         let valid_pos = |rng: &mut Rng| -> Option<usize> {
@@ -130,12 +135,12 @@ impl RiscVInstructionMutator {
 
         match mutation {
             Mutation::Add => {
-                program.insert(add_pos(rng)?, self.gen_inst(program, rng));
+                program.insert(add_pos(rng), self.gen_inst(program, rng));
             }
             Mutation::Replace => {
                 // Keep replacing until we actually changed something.
                 loop {
-                    let pos = add_pos(rng)?;
+                    let pos = valid_pos(rng)?;
                     let old_inst = program[pos].clone();
                     let new_inst = self.gen_inst(program, rng);
                     if new_inst != old_inst {
@@ -254,8 +259,8 @@ mod tests {
         /// Calculates how many instructions have changed.
         fn update_changed(&mut self) {
             self.changed_insts = 0;
-            let new_insts = parse_instructions(&self.data, &instructions::sets::riscv_g());
-            let old_insts = parse_instructions(&self.old_data, &instructions::sets::riscv_g());
+            let new_insts = parse_instructions(&self.data, &instructions::sets::riscv_g()).unwrap();
+            let old_insts = parse_instructions(&self.old_data, &instructions::sets::riscv_g()).unwrap();
             for i in 0..min(new_insts.len(), old_insts.len()) {
                 if new_insts[i] != old_insts[i] {
                     self.changed_insts += 1;
@@ -297,7 +302,7 @@ mod tests {
 
         /// Returns the parsed instructions in the current buffer.
         fn parsed_insts(&self) -> Vec<Instruction> {
-            parse_instructions(&self.data, &instructions::sets::riscv_g())
+            parse_instructions(&self.data, &instructions::sets::riscv_g()).unwrap()
         }
     }
 
