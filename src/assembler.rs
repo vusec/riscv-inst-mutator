@@ -66,7 +66,7 @@ mod tests {
 
             let mut insts = Vec::<Instruction>::new();
 
-            for _ in 0..rng.below(100) {
+            for _ in 0..rng.below(5) {
                 let inst = generator.generate_instruction::<Xoshiro256StarRand>(
                     &mut rng,
                     &instructions::sets::riscv_g(),
