@@ -153,7 +153,7 @@ pub fn main() {
 fn fuzz(
     base_corpus_dir: PathBuf,
     base_objective_dir: PathBuf,
-    seed_dir: &PathBuf,
+    _seed_dir: &PathBuf, // Currently unused because seed parsing not implemented.
     timeout: Duration,
     executable: &String,
     debug_child: bool,
