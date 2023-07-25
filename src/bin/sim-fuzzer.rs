@@ -7,7 +7,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use clap::{Parser};
+use clap::Parser;
 use libafl::prelude::CoreId;
 use libafl::{
     bolts::{
@@ -41,7 +41,7 @@ use riscv_mutator::{
     calibration::DummyCalibration,
     fuzz_ui::{FuzzUI, FUZZING_CAUSE_DIR_VAR},
     instructions::{
-        riscv::{args, rv_i::{ADD, AUIPC}, rv64_i::LD},
+        riscv::{args, rv_i::{ADDI, AUIPC}, rv64_i::LD},
         Argument, Instruction,
     },
     monitor::HWFuzzMonitor,
@@ -260,20 +260,29 @@ fn fuzz(
 
         // Always add at least one dummy seed otherwise LibAFL crashes...
         // Do this after loading the seed folder as LibAFL otherwise also crashes...
+        // We have to do at least one load in the initial seed otherwise our
+        // feedback somehow causes libafl to break...
         let auipc = Instruction::new(&AUIPC, vec![Argument::new(&args::RD, 1u32)]);
         let load = Instruction::new(&LD, vec![Argument::new(&args::RD, 2u32),
                                               Argument::new(&args::RS1, 1u32)]);
-        let add_inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 2u32)]);
+        // Add some random instructions to the seed.
+        let pad_inst1 = Instruction::new(&ADDI, vec![Argument::new(&args::RD, 3u32),
+                                                    Argument::new(&args::RS1, 1u32),
+                                                    Argument::new(&args::IMM20, 8u32)]);
+        let pad_inst2 = Instruction::new(&ADDI, vec![Argument::new(&args::RD, 2u32),
+                                                    Argument::new(&args::RS1, 3u32),
+                                                    Argument::new(&args::IMM20, 4u32)]);
 
-        let init = ProgramInput::new([auipc, load, add_inst].to_vec());
+        let init = ProgramInput::new([auipc, load, pad_inst1, pad_inst2].to_vec());
         fuzzer
             .add_input(&mut state, &mut executor, &mut mgr, init)
             .expect("Failed to load initial inputs");
 
 
-        // The order of the stages matter!
+        // First calibrate the initial seed and then mutate.
         let mut stages = tuple_list!(calibration, power);
 
+        // Main fuzzing loop.
         let mut last = current_time();
         let monitor_timeout = Duration::from_secs(1);
 
