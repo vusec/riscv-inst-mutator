@@ -49,7 +49,7 @@ impl Monitor for HWFuzzMonitor {
             }
 
             let mut msg = format!(
-                "time: {}, corpus size: {}, taint violations: {}, execs: {}, exec/sec: {}",
+                "time: {}, corpus: {}, found: {}, execs: {}, exec/sec: {}",
                 format_duration_hms(&(current_time() - self.start_time)),
                 self.corpus_size(),
                 self.objective_size(),
