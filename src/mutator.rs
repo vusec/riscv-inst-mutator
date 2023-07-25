@@ -127,7 +127,7 @@ impl RiscVInstructionMutator {
         };
         // Creates:
         //   jalr x0, 0(x1)
-        let make_ret = |rng: &mut Rng| -> Vec<Instruction> {
+        let make_ret = |_rng: &mut Rng| -> Vec<Instruction> {
             vec![
                 Instruction::new(&JALR, vec![Argument::new(&args::RD, 0),
                                              Argument::new(&args::RS1, 1),
