@@ -116,7 +116,8 @@ impl RiscVInstructionMutator {
         //   auipc x1, 0
         //   jalr x1, random_offset(x1)
         let make_call = |rng: &mut Rng| -> Vec<Instruction> {
-            let offset = rng.below(32) as u32;
+            let raw_offset : u32 = rng.below(16) as u32;
+            let offset : u32 = if rng.below(2) == 0 { !raw_offset } else { raw_offset };
             vec![
                 Instruction::new(&AUIPC, vec![Argument::new(&args::RD, 1),
                                               Argument::new(&args::IMM20, 0)]),
