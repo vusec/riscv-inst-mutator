@@ -5,6 +5,7 @@ use std::{
     path::PathBuf,
     process,
     sync::{Arc, Mutex},
+    collections::HashMap,
 };
 
 use clap::Parser;
@@ -147,6 +148,20 @@ pub fn main() {
     let arguments = &args.arguments[1..];
 
     println!("Target: {:#?}", arguments);
+    let scheduler_map : HashMap<String, PowerSchedule> = HashMap::from(
+        [("explore".to_owned(), PowerSchedule::EXPLORE),
+            ("fast".to_owned(), PowerSchedule::FAST),
+            ("exploit".to_owned(), PowerSchedule::EXPLOIT),
+        ]
+    );
+    let scheduler = scheduler_map.get(&args.scheduler);
+    if scheduler.is_none() {
+        println!("Unknown scheduler {:?}. Supported schedulers: {:?}",
+                    args.scheduler, scheduler_map.keys());
+        return;
+    }
+
+    let port = if args.port == 0 { None} else { Some(args.port) };
 
     fuzz(
         out_dir,
@@ -159,6 +174,8 @@ pub fn main() {
         &arguments,
         cores,
         simple_ui,
+        scheduler.copied(),
+        port,
     )
     .expect("An error occurred while fuzzing");
 }
@@ -175,6 +192,8 @@ fn fuzz(
     arguments: &[String],
     cores: Cores,
     simple_ui: bool,
+    schedule: Option<PowerSchedule>,
+    port: Option<u16>,
 ) -> Result<(), Error> {
     let ui: Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new(simple_ui)));
     const MAP_SIZE: usize = 2_621_440;
@@ -246,7 +265,7 @@ fn fuzz(
         let scheduler = IndexesLenTimeMinimizerScheduler::new(StdWeightedScheduler::with_schedule(
             &mut state,
             &edges_observer,
-            Some(PowerSchedule::EXPLORE),
+            schedule,
         ));
 
         // A fuzzer with feedbacks and a corpus scheduler
@@ -316,12 +335,15 @@ fn fuzz(
 
     let conf = EventConfig::from_build_id();
 
+    let random_port = 8000u16 + cores.ids.first().unwrap().0 as u16;
+
     let launcher = Launcher::builder()
         .shmem_provider(shmem_provider)
         .configuration(conf)
         .cores(&cores)
         .monitor(monitor)
         .serialize_state(false)
+        .broker_port(port.or(Some(random_port)).unwrap())
         .run_client(&mut run_client);
 
     let launcher = launcher.stdout_file(Some("/dev/null"));
