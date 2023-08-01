@@ -3,7 +3,7 @@ use crate::instructions::{Instruction, InstructionTemplate};
 pub fn parse_instructions(
     input: &Vec<u8>,
     insts: &Vec<&'static InstructionTemplate>,
-) -> Result<Vec::<Instruction>, String> {
+) -> Result<Vec<Instruction>, String> {
     let mut result = Vec::<Instruction>::new();
 
     if input.len() % 4 != 0 {

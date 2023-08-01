@@ -1,10 +1,10 @@
-use std::fs;
 use clap::Parser;
 use colored::Colorize;
 use crossterm::style::Stylize;
 use riscv_mutator::instructions::Instruction;
 use riscv_mutator::program_input::ProgramInput;
 use riscv_mutator::{instructions, parser};
+use std::fs;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

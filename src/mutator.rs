@@ -4,7 +4,14 @@ use libafl::prelude::*;
 
 use crate::{
     generator::InstGenerator,
-    instructions::{self, Instruction, riscv::{args, rv_i::{JALR, AUIPC}}, Argument},
+    instructions::{
+        self,
+        riscv::{
+            args,
+            rv_i::{AUIPC, JALR},
+        },
+        Argument, Instruction,
+    },
     program_input::HasProgramInput,
 };
 
@@ -96,7 +103,6 @@ impl RiscVInstructionMutator {
         rng: &mut Rng,
         input: &mut Vec<u8>,
     ) -> Result<MutationResult, Error> {
-
         let program_or_err = parse_instructions(input, &instructions::sets::riscv_g());
         if program_or_err.is_err() {
             return Err(Error::illegal_argument(program_or_err.err().unwrap()));
@@ -116,28 +122,42 @@ impl RiscVInstructionMutator {
         //   auipc x1, 0
         //   jalr x1, random_offset(x1)
         let make_call = |rng: &mut Rng| -> Vec<Instruction> {
-            let raw_offset : u32 = rng.below(16) as u32;
-            let offset : u32 = if rng.below(2) == 0 { !raw_offset } else { raw_offset };
+            let raw_offset: u32 = rng.below(16) as u32;
+            let offset: u32 = if rng.below(2) == 0 {
+                !raw_offset
+            } else {
+                raw_offset
+            };
             vec![
-                Instruction::new(&AUIPC, vec![Argument::new(&args::RD, 1),
-                                              Argument::new(&args::IMM20, 0)]),
-                Instruction::new(&JALR, vec![Argument::new(&args::RD, 1),
-                                             Argument::new(&args::RS1, 1),
-                                             Argument::new(&args::IMM12, offset)])
+                Instruction::new(
+                    &AUIPC,
+                    vec![Argument::new(&args::RD, 1), Argument::new(&args::IMM20, 0)],
+                ),
+                Instruction::new(
+                    &JALR,
+                    vec![
+                        Argument::new(&args::RD, 1),
+                        Argument::new(&args::RS1, 1),
+                        Argument::new(&args::IMM12, offset),
+                    ],
+                ),
             ]
         };
         // Creates:
         //   jalr x0, 0(x1)
         let make_ret = |_rng: &mut Rng| -> Vec<Instruction> {
-            vec![
-                Instruction::new(&JALR, vec![Argument::new(&args::RD, 0),
-                                             Argument::new(&args::RS1, 1),
-                                             Argument::new(&args::IMM12, 0)])
-            ]
+            vec![Instruction::new(
+                &JALR,
+                vec![
+                    Argument::new(&args::RD, 0),
+                    Argument::new(&args::RS1, 1),
+                    Argument::new(&args::IMM12, 0),
+                ],
+            )]
         };
 
         let options = [make_call, make_ret];
-        let selected : usize = rng.below(options.len() as u64) as usize;
+        let selected: usize = rng.below(options.len() as u64) as usize;
         return options[selected](rng);
     }
 
@@ -263,10 +283,10 @@ mod tests {
     use crate::assembler::assemble_instructions;
     use crate::generator::InstGenerator;
     use crate::instructions;
-    use crate::instructions::Instruction;
-    use crate::instructions::InstructionTemplate;
     use crate::instructions::riscv::rv_i::AUIPC;
     use crate::instructions::riscv::rv_i::JALR;
+    use crate::instructions::Instruction;
+    use crate::instructions::InstructionTemplate;
     use crate::parser::parse_instructions;
 
     use super::Mutation;
@@ -302,7 +322,8 @@ mod tests {
         fn update_changed(&mut self) {
             self.changed_insts = 0;
             let new_insts = parse_instructions(&self.data, &instructions::sets::riscv_g()).unwrap();
-            let old_insts = parse_instructions(&self.old_data, &instructions::sets::riscv_g()).unwrap();
+            let old_insts =
+                parse_instructions(&self.old_data, &instructions::sets::riscv_g()).unwrap();
             for i in 0..min(new_insts.len(), old_insts.len()) {
                 if new_insts[i] != old_insts[i] {
                     self.changed_insts += 1;
