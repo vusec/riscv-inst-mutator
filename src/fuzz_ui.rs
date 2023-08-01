@@ -5,7 +5,7 @@ use crossterm::{
 };
 use libafl::prelude::{current_time, format_duration_hms};
 use std::{
-    collections::{VecDeque, HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     io::{self, Stdout},
     path::Path,
     time::{Duration, Instant, UNIX_EPOCH},
@@ -129,12 +129,11 @@ impl Drop for FuzzUI {
 }
 
 struct TestCaseData {
-    cause : String,
-    time_to_exposure : Duration,
+    cause: String,
+    time_to_exposure: Duration,
 }
 
-fn summarize_findings(data: &FuzzUIData) -> Vec::<String> {
-
+fn summarize_findings(data: &FuzzUIData) -> Vec<String> {
     let cause_dir =
         std::env::var(FUZZING_CAUSE_DIR_VAR).expect("Driver failed to set cause env var?");
 
@@ -152,13 +151,16 @@ fn summarize_findings(data: &FuzzUIData) -> Vec::<String> {
 
         case_list.push(TestCaseData {
             cause: cause_str.or(Some("Bad cause name")).unwrap().to_string(),
-            time_to_exposure: diff_time
+            time_to_exposure: diff_time,
         })
     }
 
     let mut dupes = HashMap::<String, u64>::new();
     for case in &case_list {
-        dupes.insert(case.cause.clone(), dupes.get(&case.cause).or(Some(&0)).unwrap() + 1);
+        dupes.insert(
+            case.cause.clone(),
+            dupes.get(&case.cause).or(Some(&0)).unwrap() + 1,
+        );
     }
 
     case_list.sort_by_key(|t| t.time_to_exposure);
@@ -199,7 +201,8 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
         .iter()
         .map(|i| ListItem::new(i.as_str()).style(Style::default()))
         .collect();
-    let findings_list = List::new(findings).block(Block::default().borders(Borders::ALL).title("Findings"));
+    let findings_list =
+        List::new(findings).block(Block::default().borders(Borders::ALL).title("Findings"));
 
     f.render_widget(findings_list, top_chunks[1]);
 

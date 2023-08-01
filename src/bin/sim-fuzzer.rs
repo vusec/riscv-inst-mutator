@@ -1,11 +1,11 @@
 use core::time::Duration;
 use std::{
+    collections::HashMap,
     fs::{self, OpenOptions},
     io::Write,
     path::PathBuf,
     process,
     sync::{Arc, Mutex},
-    collections::HashMap,
 };
 
 use clap::Parser;
@@ -42,7 +42,11 @@ use riscv_mutator::{
     calibration::DummyCalibration,
     fuzz_ui::{FuzzUI, FUZZING_CAUSE_DIR_VAR},
     instructions::{
-        riscv::{args, rv_i::{ADDI, AUIPC}, rv64_i::LD},
+        riscv::{
+            args,
+            rv64_i::LD,
+            rv_i::{ADDI, AUIPC},
+        },
         Argument, Instruction,
     },
     monitor::HWFuzzMonitor,
@@ -77,7 +81,6 @@ impl log::Log for FuzzLogger {
 }
 static LOGGER: FuzzLogger = FuzzLogger;
 
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -111,7 +114,11 @@ pub fn main() {
     std::fs::create_dir_all(log_dir.clone()).expect("Failed to create 'logs' directory.");
     std::env::set_var(FUZZING_LOG_DIR_VAR, log_dir.as_os_str());
 
-    let fuzzing_level = if args.log { LevelFilter::Warn } else { LevelFilter::Error };
+    let fuzzing_level = if args.log {
+        LevelFilter::Warn
+    } else {
+        LevelFilter::Error
+    };
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(fuzzing_level))
         .expect("Failed to setup logger.");
@@ -148,20 +155,26 @@ pub fn main() {
     let arguments = &args.arguments[1..];
 
     println!("Target: {:#?}", arguments);
-    let scheduler_map : HashMap<String, PowerSchedule> = HashMap::from(
-        [("explore".to_owned(), PowerSchedule::EXPLORE),
-            ("fast".to_owned(), PowerSchedule::FAST),
-            ("exploit".to_owned(), PowerSchedule::EXPLOIT),
-        ]
-    );
+    let scheduler_map: HashMap<String, PowerSchedule> = HashMap::from([
+        ("explore".to_owned(), PowerSchedule::EXPLORE),
+        ("fast".to_owned(), PowerSchedule::FAST),
+        ("exploit".to_owned(), PowerSchedule::EXPLOIT),
+    ]);
     let scheduler = scheduler_map.get(&args.scheduler);
     if scheduler.is_none() {
-        println!("Unknown scheduler {:?}. Supported schedulers: {:?}",
-                    args.scheduler, scheduler_map.keys());
+        println!(
+            "Unknown scheduler {:?}. Supported schedulers: {:?}",
+            args.scheduler,
+            scheduler_map.keys()
+        );
         return;
     }
 
-    let port = if args.port == 0 { None} else { Some(args.port) };
+    let port = if args.port == 0 {
+        None
+    } else {
+        Some(args.port)
+    };
 
     fuzz(
         out_dir,
@@ -204,134 +217,145 @@ fn fuzz(
     let shmem_provider = UnixShMemProvider::new().expect("Failed to init shared memory");
     let mut shmem_provider_client = shmem_provider.clone();
 
-    let mut run_client = |_state: Option<_>,
-                          mut mgr: LlmpRestartingEventManager<_, _>,
-                          core_id: CoreId| {
-        // The coverage map shared between observer and executor
-        let mut shmem = shmem_provider_client.new_shmem(MAP_SIZE).unwrap();
+    let mut run_client =
+        |_state: Option<_>, mut mgr: LlmpRestartingEventManager<_, _>, core_id: CoreId| {
+            // The coverage map shared between observer and executor
+            let mut shmem = shmem_provider_client.new_shmem(MAP_SIZE).unwrap();
 
-        // let the forkserver know the shmid
-        shmem.write_to_env("__AFL_SHM_ID").unwrap();
-        let shmem_buf = shmem.as_mut_slice();
+            // let the forkserver know the shmid
+            shmem.write_to_env("__AFL_SHM_ID").unwrap();
+            let shmem_buf = shmem.as_mut_slice();
 
-        // To let know the AFL++ binary that we have a big map
-        std::env::set_var("AFL_MAP_SIZE", format!("{}", MAP_SIZE));
+            // To let know the AFL++ binary that we have a big map
+            std::env::set_var("AFL_MAP_SIZE", format!("{}", MAP_SIZE));
 
-        // Create an observation channel using the hitcounts map of AFL++
-        let edges_observer =
-            unsafe { HitcountsMapObserver::new(StdMapObserver::new("shared_mem", shmem_buf)) };
+            // Create an observation channel using the hitcounts map of AFL++
+            let edges_observer =
+                unsafe { HitcountsMapObserver::new(StdMapObserver::new("shared_mem", shmem_buf)) };
 
-        // Create an observation channel to keep track of the execution time
-        let time_observer = TimeObserver::new("time");
+            // Create an observation channel to keep track of the execution time
+            let time_observer = TimeObserver::new("time");
 
-        let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
+            let map_feedback = MaxMapFeedback::tracking(&edges_observer, true, false);
 
-        let calibration = DummyCalibration::new(&map_feedback);
+            let calibration = DummyCalibration::new(&map_feedback);
 
-        // Feedback to rate the interestingness of an input
-        // This one is composed by two Feedbacks in OR
-        let mut feedback = feedback_or!(
-            // New maximization map feedback linked to the edges observer and the feedback state
-            map_feedback,
-            // Time feedback, this one does not need a feedback state
-            TimeFeedback::with_observer(&time_observer)
-        );
+            // Feedback to rate the interestingness of an input
+            // This one is composed by two Feedbacks in OR
+            let mut feedback = feedback_or!(
+                // New maximization map feedback linked to the edges observer and the feedback state
+                map_feedback,
+                // Time feedback, this one does not need a feedback state
+                TimeFeedback::with_observer(&time_observer)
+            );
 
-        // Create client specific directories to avoid race conditions when
-        // writing the corpus to disk.
-        let mut corpus_dir = base_corpus_dir.clone();
-        corpus_dir.push(format!("{}", core_id.0));
-        let mut objective_dir = base_objective_dir.clone();
-        objective_dir.push(format!("{}", core_id.0));
+            // Create client specific directories to avoid race conditions when
+            // writing the corpus to disk.
+            let mut corpus_dir = base_corpus_dir.clone();
+            corpus_dir.push(format!("{}", core_id.0));
+            let mut objective_dir = base_objective_dir.clone();
+            objective_dir.push(format!("{}", core_id.0));
 
-        // A feedback to choose if an input is a solution or not
-        let mut objective = CrashFeedback::new();
+            // A feedback to choose if an input is a solution or not
+            let mut objective = CrashFeedback::new();
 
-        // Create the fuzz state.
-        let mut state = StdState::new(
-            StdRand::with_seed(current_nanos()),
-            InMemoryOnDiskCorpus::<ProgramInput>::new(corpus_dir).unwrap(),
-            OnDiskCorpus::new(objective_dir).unwrap(),
-            &mut feedback,
-            &mut objective,
-        )
-        .unwrap();
-
-        let mutator = StdScheduledMutator::new(all_riscv_mutations());
-
-        let power = StdPowerMutationalStage::new(mutator);
-
-        // A minimization+queue policy to get testcasess from the corpus
-        let scheduler = IndexesLenTimeMinimizerScheduler::new(StdWeightedScheduler::with_schedule(
-            &mut state,
-            &edges_observer,
-            schedule,
-        ));
-
-        // A fuzzer with feedbacks and a corpus scheduler
-        let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
-
-        let forkserver = ForkserverExecutor::builder()
-            .program(executable.clone())
-            .debug_child(debug_child)
-            .parse_afl_cmdline(arguments)
-            .coverage_map_size(MAP_SIZE)
-            .is_persistent(false)
-            .build_dynamic_map(edges_observer, tuple_list!(time_observer))
+            // Create the fuzz state.
+            let mut state = StdState::new(
+                StdRand::with_seed(current_nanos()),
+                InMemoryOnDiskCorpus::<ProgramInput>::new(corpus_dir).unwrap(),
+                OnDiskCorpus::new(objective_dir).unwrap(),
+                &mut feedback,
+                &mut objective,
+            )
             .unwrap();
 
-        let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
-            .expect("Failed to create the executor.");
+            let mutator = StdScheduledMutator::new(all_riscv_mutations());
 
-        // Load the initial seeds from the user directory.
-        // state
-        //     .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
-        //     .unwrap_or_else(|_| {
-        //         println!("Failed to load initial corpus at {:?}", &seed_dir);
-        //         process::exit(0);
-        //     });
+            let power = StdPowerMutationalStage::new(mutator);
 
-        // Always add at least one dummy seed otherwise LibAFL crashes...
-        // Do this after loading the seed folder as LibAFL otherwise also crashes...
-        // We have to do at least one load in the initial seed otherwise our
-        // feedback somehow causes libafl to break...
-        let auipc = Instruction::new(&AUIPC, vec![Argument::new(&args::RD, 1u32)]);
-        let load = Instruction::new(&LD, vec![Argument::new(&args::RD, 2u32),
-                                              Argument::new(&args::RS1, 1u32)]);
-        // Add some random instructions to the seed.
-        let pad_inst1 = Instruction::new(&ADDI, vec![Argument::new(&args::RD, 3u32),
-                                                    Argument::new(&args::RS1, 1u32),
-                                                    Argument::new(&args::IMM20, 8u32)]);
-        let pad_inst2 = Instruction::new(&ADDI, vec![Argument::new(&args::RD, 2u32),
-                                                    Argument::new(&args::RS1, 3u32),
-                                                    Argument::new(&args::IMM20, 4u32)]);
+            // A minimization+queue policy to get testcasess from the corpus
+            let scheduler = IndexesLenTimeMinimizerScheduler::new(
+                StdWeightedScheduler::with_schedule(&mut state, &edges_observer, schedule),
+            );
 
-        let init = ProgramInput::new([auipc, load, pad_inst1, pad_inst2].to_vec());
-        fuzzer
-            .add_input(&mut state, &mut executor, &mut mgr, init)
-            .expect("Failed to load initial inputs");
+            // A fuzzer with feedbacks and a corpus scheduler
+            let mut fuzzer = StdFuzzer::new(scheduler, feedback, objective);
 
+            let forkserver = ForkserverExecutor::builder()
+                .program(executable.clone())
+                .debug_child(debug_child)
+                .parse_afl_cmdline(arguments)
+                .coverage_map_size(MAP_SIZE)
+                .is_persistent(false)
+                .build_dynamic_map(edges_observer, tuple_list!(time_observer))
+                .unwrap();
 
-        // First calibrate the initial seed and then mutate.
-        let mut stages = tuple_list!(calibration, power);
+            let mut executor = TimeoutForkserverExecutor::with_signal(forkserver, timeout, signal)
+                .expect("Failed to create the executor.");
 
-        // Main fuzzing loop.
-        let mut last = current_time();
-        let monitor_timeout = Duration::from_secs(1);
+            // Load the initial seeds from the user directory.
+            // state
+            //     .load_initial_inputs(&mut fuzzer, &mut executor, &mut mgr, &[seed_dir.clone()])
+            //     .unwrap_or_else(|_| {
+            //         println!("Failed to load initial corpus at {:?}", &seed_dir);
+            //         process::exit(0);
+            //     });
 
-        loop {
-            let fuzz_err = fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr);
-            if fuzz_err.is_err() {
-                log::error!("fuzz_one error: {}", fuzz_err.err().unwrap());
+            // Always add at least one dummy seed otherwise LibAFL crashes...
+            // Do this after loading the seed folder as LibAFL otherwise also crashes...
+            // We have to do at least one load in the initial seed otherwise our
+            // feedback somehow causes libafl to break...
+            let auipc = Instruction::new(&AUIPC, vec![Argument::new(&args::RD, 1u32)]);
+            let load = Instruction::new(
+                &LD,
+                vec![
+                    Argument::new(&args::RD, 2u32),
+                    Argument::new(&args::RS1, 1u32),
+                ],
+            );
+            // Add some random instructions to the seed.
+            let pad_inst1 = Instruction::new(
+                &ADDI,
+                vec![
+                    Argument::new(&args::RD, 3u32),
+                    Argument::new(&args::RS1, 1u32),
+                    Argument::new(&args::IMM20, 8u32),
+                ],
+            );
+            let pad_inst2 = Instruction::new(
+                &ADDI,
+                vec![
+                    Argument::new(&args::RD, 2u32),
+                    Argument::new(&args::RS1, 3u32),
+                    Argument::new(&args::IMM20, 4u32),
+                ],
+            );
+
+            let init = ProgramInput::new([auipc, load, pad_inst1, pad_inst2].to_vec());
+            fuzzer
+                .add_input(&mut state, &mut executor, &mut mgr, init)
+                .expect("Failed to load initial inputs");
+
+            // First calibrate the initial seed and then mutate.
+            let mut stages = tuple_list!(calibration, power);
+
+            // Main fuzzing loop.
+            let mut last = current_time();
+            let monitor_timeout = Duration::from_secs(1);
+
+            loop {
+                let fuzz_err = fuzzer.fuzz_one(&mut stages, &mut executor, &mut state, &mut mgr);
+                if fuzz_err.is_err() {
+                    log::error!("fuzz_one error: {}", fuzz_err.err().unwrap());
+                }
+                let last_err = mgr.maybe_report_progress(&mut state, last, monitor_timeout);
+                if last_err.is_err() {
+                    log::error!("last_err error: {}", last_err.err().unwrap());
+                } else {
+                    last = last_err.ok().unwrap()
+                }
             }
-            let last_err = mgr.maybe_report_progress(&mut state, last, monitor_timeout);
-            if last_err.is_err() {
-                log::error!("last_err error: {}", last_err.err().unwrap());
-            } else {
-                last = last_err.ok().unwrap()
-            }
-        }
-    };
+        };
 
     let conf = EventConfig::from_build_id();
 
