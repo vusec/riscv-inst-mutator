@@ -53,13 +53,16 @@ use log::{LevelFilter, Metadata, Record};
 
 struct FuzzLogger;
 
+pub const FUZZING_LOG_DIR_VAR: &'static str = "FUZZING_LOG_DIR";
+
 impl log::Log for FuzzLogger {
     fn enabled(&self, _metadata: &Metadata) -> bool {
         true
     }
 
     fn log(&self, record: &Record) {
-        let logfile = format!("fuzzer-pid_{}.log", process::id());
+        let log_dir = std::env::var(FUZZING_LOG_DIR_VAR).unwrap_or(".".to_owned());
+        let logfile = format!("{}/fuzzer-pid_{}.log", log_dir, process::id());
         let mut dd = OpenOptions::new()
             .append(true)
             .create(true)
@@ -86,21 +89,32 @@ struct Args {
     timeout: u64,
     #[arg(short, long, default_value = "all")]
     cores: String,
-    #[arg(short, long, default_value_t = false)]
+    #[arg(long, default_value_t = false)]
     log: bool,
     #[arg(short, long, default_value_t = false)]
     simple_ui: bool,
+    #[arg(long, default_value = "explore")]
+    scheduler: String,
+    #[arg(long, default_value = "default")]
+    mutations: String,
+    #[arg(long, default_value_t = 0)]
+    port: u16,
 }
 
 pub fn main() {
     let args = Args::parse();
-    if args.log {
-        log::set_logger(&LOGGER)
-            .map(|()| log::set_max_level(LevelFilter::Info))
-            .expect("Failed to setup logger.");
-    }
-
     let mut out_dir = PathBuf::from(args.out);
+
+    let mut log_dir = out_dir.clone();
+    log_dir.push("logs");
+    std::fs::create_dir_all(log_dir.clone()).expect("Failed to create 'logs' directory.");
+    std::env::set_var(FUZZING_LOG_DIR_VAR, log_dir.as_os_str());
+
+    let fuzzing_level = if args.log { LevelFilter::Warn } else { LevelFilter::Error };
+    log::set_logger(&LOGGER)
+        .map(|()| log::set_max_level(fuzzing_level))
+        .expect("Failed to setup logger.");
+
     if fs::create_dir(&out_dir).is_err() {
         if !out_dir.is_dir() {
             println!("Out dir at {:?} is not a valid directory!", &out_dir);
