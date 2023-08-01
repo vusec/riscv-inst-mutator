@@ -90,6 +90,10 @@ impl FuzzUI {
     fn on_tick(&mut self) {
         if let Some(term) = self.terminal.as_mut() {
             term.draw(|f| ui(f, &self.data)).unwrap();
+        } else {
+            if !self.data.messages.is_empty() {
+                println!("{}", self.data.messages.front().unwrap());
+            }
         }
 
         let timeout = Duration::from_millis(1);
