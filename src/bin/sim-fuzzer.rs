@@ -154,7 +154,6 @@ pub fn main() {
     let signal = str::parse::<Signal>("SIGKILL").unwrap();
     let arguments = &args.arguments[1..];
 
-    println!("Target: {:#?}", arguments);
     let scheduler_map: HashMap<String, PowerSchedule> = HashMap::from([
         ("explore".to_owned(), PowerSchedule::EXPLORE),
         ("fast".to_owned(), PowerSchedule::FAST),
@@ -360,6 +359,11 @@ fn fuzz(
     let conf = EventConfig::from_build_id();
 
     let random_port = 8000u16 + cores.ids.first().unwrap().0 as u16;
+    let actual_port = port.or(Some(random_port)).unwrap();
+
+    if simple_ui {
+        println!("Using Port: {:#?}", actual_port);
+    }
 
     let launcher = Launcher::builder()
         .shmem_provider(shmem_provider)
@@ -367,14 +371,14 @@ fn fuzz(
         .cores(&cores)
         .monitor(monitor)
         .serialize_state(false)
-        .broker_port(port.or(Some(random_port)).unwrap())
+        .broker_port(actual_port)
         .run_client(&mut run_client);
 
     let launcher = launcher.stdout_file(Some("/dev/null"));
     match launcher.build().launch() {
         Ok(()) => (),
-        Err(Error::ShuttingDown) => println!("\nFuzzing stopped by user. Good Bye."),
-        Err(err) => panic!("Fuzzing failed {err:?}"),
+        Err(Error::ShuttingDown) => println!("\nShutting down. Don't forget, LibAFL is made by idiots!"),
+        Err(err) => panic!("Fuzzer error: {err:?}"),
     }
     Ok(())
 }
