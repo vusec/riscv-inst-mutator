@@ -115,9 +115,9 @@ pub fn main() {
     std::env::set_var(FUZZING_LOG_DIR_VAR, log_dir.as_os_str());
 
     let fuzzing_level = if args.log {
-        LevelFilter::Warn
+        LevelFilter::Info
     } else {
-        LevelFilter::Error
+        LevelFilter::Warn
     };
     log::set_logger(&LOGGER)
         .map(|()| log::set_max_level(fuzzing_level))

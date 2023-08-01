@@ -60,17 +60,25 @@ impl Monitor for HWFuzzMonitor {
                 msg += format!(", {key}: {val}").as_str();
             }
             data.add_message(msg.to_string());
+
             if msg.contains("shared_mem") {
                 let mut log_msg = format!(
                     "STATUS: {} {} {} {} {} ",
-                    format_duration_hms(&(current_time() - self.start_time)),
+                    (current_time() - self.start_time).as_secs(),
                     self.corpus_size(),
                     self.objective_size(),
                     execs,
                     execs_per_sec,
                 );
-                for (key, val) in &client.user_monitor {
-                    log_msg += format!(", {key}: {val}").as_str();
+                for (_key, val) in &client.user_monitor {
+                    // Remove bunch of undesired stuff from the key to make it
+                    // fully space separated.
+                    let mut val_str = format!(" {val}").as_str().to_owned();
+                    val_str = val_str.replace("/", " ");
+                    val_str = val_str.replace("(", " ");
+                    val_str = val_str.replace(")", " ");
+                    val_str = val_str.replace("%", " ");
+                    log_msg += &val_str;
                 }
                 log::info!("{}", log_msg);
             }
