@@ -10,6 +10,8 @@ use std::fs;
 #[command(author, version, about, long_about = None)]
 struct Args {
     input: Vec<String>,
+    #[arg(long, default_value_t = false)]
+    raw: bool,
 }
 
 fn main() {
@@ -23,17 +25,18 @@ fn main() {
         }
 
         let buffer = fs::read(filename).expect("Failed to read file");
-        let input = postcard::from_bytes::<ProgramInput>(buffer.as_slice());
 
         let program: Vec<Instruction>;
 
-        if input.is_err() {
-            eprintln!(
-                "Note: Input file not in internal serialized format, assuming plain instructions"
-            );
-            program = parser::parse_instructions(&buffer, &instructions::sets::riscv_g())
-                .expect("Failed to parse instructions");
+        if args.raw {
+            let program_or_err = parser::parse_instructions(&buffer, &instructions::sets::riscv_g());
+            if program_or_err.is_err() {
+                eprintln!("Failed to decode raw instructions.");
+                continue;
+            }
+            program = program_or_err.unwrap();
         } else {
+            let input = postcard::from_bytes::<ProgramInput>(buffer.as_slice());
             program = input.unwrap().insts().to_vec();
         }
 
