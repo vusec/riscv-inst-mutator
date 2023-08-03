@@ -1,9 +1,11 @@
 #ifndef FUZZER_API
 #define FUZZER_API
 
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
+#include <iomanip>
 #include <sstream>
 #include <fstream>
 #include <string>
@@ -56,6 +58,30 @@ void reportFuzzingIssue(std::string reason, std::string pathToTestCase) {
     // moved.
     std::filesystem::copy(pathToTestCase, savedFileName);
     abort();
+}
+
+/// Should be called on every executed fuzz input.
+/// Takes care of storing all inputs if requested by the fuzzer.
+/// @param path Path to the file containing the fuzzer input.
+void fuzzInputCallback(std::string path) {
+    // INPUT_STORAGE is set by the fuzzer if we should save all inputs. The
+    // value of the variable is the directory we should save the inputs in.
+    if (const char *outPathC = std::getenv("INPUT_STORAGE")) {
+        const auto now = std::chrono::system_clock::now();
+
+        // Generate a unique output name.
+        std::stringstream outPath;
+        outPath << outPathC << "/";
+        outPath.width(21);
+        outPath.fill('0');
+        outPath << std::chrono::duration_cast<std::chrono::microseconds>(
+                   now.time_since_epoch()).count();
+        outPath.width(1);
+        outPath << "-" << getpid();
+        outPath << "-" << getppid();
+
+        std::filesystem::copy(path, outPath.str());
+    }
 }
 
 #endif // FUZZER_API

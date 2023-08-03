@@ -95,6 +95,8 @@ struct Args {
     cores: String,
     #[arg(long, default_value_t = false)]
     log: bool,
+    #[arg(long, default_value_t = false)]
+    dont_save_inputs: bool,
     #[arg(short, long, default_value_t = false)]
     simple_ui: bool,
     #[arg(long, default_value = "explore")]
@@ -137,6 +139,16 @@ pub fn main() {
     std::fs::create_dir_all(cause_dir.clone()).expect("Failed to create 'causes' directory.");
 
     std::env::set_var(FUZZING_CAUSE_DIR_VAR, cause_dir.as_os_str());
+
+    // If asked to save inputs, set the environment variable so the driver can
+    // save the inputs for us. Also see the FuzzerAPI.h header.
+    if !args.dont_save_inputs {
+        let mut inputs_dir = out_dir.clone();
+        inputs_dir.push("inputs");
+        std::fs::create_dir_all(inputs_dir.clone())
+            .expect("Failed to create 'inputs' subdirectory directory.");
+        std::env::set_var("INPUT_STORAGE", inputs_dir.as_os_str());
+    }
 
     out_dir.push("queue");
 
