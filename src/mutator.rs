@@ -228,7 +228,7 @@ impl RiscVInstructionMutator {
             }
             Mutation::RepeatSeveral => {
                 let pos = valid_pos(rng)?;
-                for _ in 0..(rng.below(32) + 1) {
+                for _ in 0..(rng.below(4) + 1) {
                     program.insert(pos, program[pos].clone());
                 }
             }
