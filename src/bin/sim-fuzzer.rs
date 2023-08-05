@@ -96,7 +96,7 @@ struct Args {
     #[arg(long, default_value_t = false)]
     log: bool,
     #[arg(long, default_value_t = false)]
-    dont_save_inputs: bool,
+    save_inputs: bool,
     #[arg(short, long, default_value_t = false)]
     simple_ui: bool,
     #[arg(long, default_value = "explore")]
@@ -142,7 +142,7 @@ pub fn main() {
 
     // If asked to save inputs, set the environment variable so the driver can
     // save the inputs for us. Also see the FuzzerAPI.h header.
-    if !args.dont_save_inputs {
+    if args.save_inputs {
         let mut inputs_dir = out_dir.clone();
         inputs_dir.push("inputs");
         std::fs::create_dir_all(inputs_dir.clone())
