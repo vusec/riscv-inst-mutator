@@ -3,14 +3,19 @@
 
 #include <cstdlib>
 #include <cstdint>
+#include <iostream>
+#include <fstream>
+
 #include <dlfcn.h>
 
 extern "C" {
 extern uint32_t __afl_map_size;
 }
 
-__attribute__((no_sanitize("memory")))
-inline uint32_t getCurrentCoverage() {
+#define COMMON_FUZZ_COVERAGE_ATTRS __attribute__((no_sanitize("memory")))
+
+COMMON_FUZZ_COVERAGE_ATTRS
+inline char * getCoverageMapPtr() {
   // Find the coverage map via dlsym.
   void *f = dlopen(nullptr, RTLD_NOW);
   if (f == nullptr) {
@@ -32,6 +37,12 @@ inline uint32_t getCurrentCoverage() {
     std::cerr << "coverage map ptr is null?\n";
     std::abort();
   }
+  return map_ptr;
+}
+
+COMMON_FUZZ_COVERAGE_ATTRS
+inline uint32_t getCurrentCoverage() {
+  char *map_ptr = getCoverageMapPtr();
 
   uint32_t result = 0;
   for (uint32_t i = 0; i < __afl_map_size; ++i) {
@@ -41,8 +52,28 @@ inline uint32_t getCurrentCoverage() {
   return result;
 }
 
-inline double getCurrentCoveragePercent() {
-  return getCurrentCoverage() / (double)__afl_map_size;
+COMMON_FUZZ_COVERAGE_ATTRS
+inline void completedCycleCallback(uint32_t cycle) {
+  if (std::getenv("PRINT_COVERAGE")) {
+    std::cout << "COVERAGE: " << cycle << " " << getCurrentCoverage() << "\n";
+  }
 }
+
+COMMON_FUZZ_COVERAGE_ATTRS
+inline void completedSimCallback(uint32_t cycle) {
+  if (const char *outpath = std::getenv("PRINT_COVERAGE_MAP")) {
+    std::ofstream output(outpath);
+    char *map_ptr = getCoverageMapPtr();
+
+    for (uint32_t i = 0; i < __afl_map_size; ++i) {
+        if (map_ptr[i])
+          output << "1\n";
+        else
+          output << "0\n";
+    }
+  }
+}
+
+#undef COMMON_FUZZ_COVERAGE_ATTRS
 
 #endif // FUZZER_COVERAGE
