@@ -12,12 +12,17 @@
 
 #include <unistd.h>
 
+#include "FuzzerCoverage.h"
+
 /// Saves the given test case and annotates it with the given reason string
 /// that will be displayed in the fuzzing interface.
 /// @param reason A string that will be displayed in the fuzzing interface.
 /// @param pathToTestCase Path to the test case on disk.
 [[noreturn]]
+__attribute__((no_sanitize("memory")))
 inline void reportFuzzingIssue(std::string reason, std::string pathToTestCase) {
+    completedSimCallback();
+
     // Read the env var set by the fuzzer to figure out where to store the
     // failure reason.
     const char *causeDirVar = "FUZZING_CAUSE_DIR";
@@ -63,6 +68,7 @@ inline void reportFuzzingIssue(std::string reason, std::string pathToTestCase) {
 /// Should be called on every executed fuzz input.
 /// Takes care of storing all inputs if requested by the fuzzer.
 /// @param path Path to the file containing the fuzzer input.
+__attribute__((no_sanitize("memory")))
 inline void fuzzInputCallback(std::string path) {
     // INPUT_STORAGE is set by the fuzzer if we should save all inputs. The
     // value of the variable is the directory we should save the inputs in.

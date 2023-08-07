@@ -60,7 +60,7 @@ inline void completedCycleCallback(uint32_t cycle) {
 }
 
 COMMON_FUZZ_COVERAGE_ATTRS
-inline void completedSimCallback(uint32_t cycle) {
+inline void completedSimCallback() {
   if (const char *outpath = std::getenv("PRINT_COVERAGE_MAP")) {
     std::ofstream output(outpath);
     char *map_ptr = getCoverageMapPtr();
