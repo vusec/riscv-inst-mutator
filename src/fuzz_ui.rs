@@ -229,17 +229,23 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
         .unwrap()
         .clone();
 
-    let mut coverage = data.max_coverage.clone();
-    coverage.push((data.rel_time_secs(), last_slot.1));
+    let coverage = data.max_coverage.clone();
 
     let max_time = format_duration_hms(&(current_time() - data.start_time));
 
     let datasets = vec![Dataset::default()
         .name("")
         .marker(symbols::Marker::Braille)
-        .style(Style::default().fg(Color::Yellow))
+        .style(Style::default().fg(Color::White))
         .graph_type(GraphType::Line)
-        .data(coverage.as_slice())];
+        .data(coverage.as_slice()),
+        Dataset::default()
+        .name("")
+        .marker(symbols::Marker::Braille)
+        .style(Style::default().fg(Color::Red))
+        .graph_type(GraphType::Scatter)
+        .data(coverage.as_slice()),
+        ];
 
     let chart = Chart::new(datasets)
         .block(
