@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 ahash = "0.8.3"
-clap = { version = "4.2.7", features = ["derive"] }
+clap = { version = "=4.2.7", features = ["derive"] }
 colored = "2.0.0"
 crossterm = "0.26.1"
 hashbrown = "0.13.2"
