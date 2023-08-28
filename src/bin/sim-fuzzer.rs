@@ -389,7 +389,9 @@ fn fuzz(
     let launcher = launcher.stdout_file(Some("/dev/null"));
     match launcher.build().launch() {
         Ok(()) => (),
-        Err(Error::ShuttingDown) => println!("\nShutting down. Don't forget, LibAFL is made by idiots!"),
+        Err(Error::ShuttingDown) => {
+            println!("\nShutting down. Don't forget, LibAFL is made by idiots!")
+        }
         Err(err) => panic!("Fuzzer error: {err:?}"),
     }
     Ok(())

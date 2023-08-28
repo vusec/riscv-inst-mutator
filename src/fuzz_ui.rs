@@ -233,19 +233,20 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
 
     let max_time = format_duration_hms(&(current_time() - data.start_time));
 
-    let datasets = vec![Dataset::default()
-        .name("")
-        .marker(symbols::Marker::Braille)
-        .style(Style::default().fg(Color::White))
-        .graph_type(GraphType::Line)
-        .data(coverage.as_slice()),
+    let datasets = vec![
         Dataset::default()
-        .name("")
-        .marker(symbols::Marker::Braille)
-        .style(Style::default().fg(Color::Red))
-        .graph_type(GraphType::Scatter)
-        .data(coverage.as_slice()),
-        ];
+            .name("")
+            .marker(symbols::Marker::Braille)
+            .style(Style::default().fg(Color::White))
+            .graph_type(GraphType::Line)
+            .data(coverage.as_slice()),
+        Dataset::default()
+            .name("")
+            .marker(symbols::Marker::Braille)
+            .style(Style::default().fg(Color::Red))
+            .graph_type(GraphType::Scatter)
+            .data(coverage.as_slice()),
+    ];
 
     let chart = Chart::new(datasets)
         .block(
