@@ -80,7 +80,7 @@ impl RiscVInstructionMutator {
             generator.forward_args(inst.arguments())
         }
 
-        generator.generate_instruction::<Rng>(rng, &instructions::sets::riscv_g())
+        generator.generate_instruction::<Rng>(rng, &instructions::sets::riscv_base())
     }
 
     /// Interprets the input bytes as RISC-V opcodes and mutates them.

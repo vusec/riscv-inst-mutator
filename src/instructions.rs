@@ -143,6 +143,13 @@ pub mod sets {
         result.append(&mut rv_m::INSTS.to_vec());
         result
     }
+
+    pub fn riscv_base() -> Vec<&'static InstructionTemplate> {
+        let mut result = Vec::<&'static InstructionTemplate>::new();
+        result.append(&mut rv64_i::INSTS.to_vec());
+        result.append(&mut rv_i::INSTS.to_vec());
+        result
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
