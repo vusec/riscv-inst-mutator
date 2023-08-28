@@ -29,7 +29,8 @@ fn main() {
         let program: Vec<Instruction>;
 
         if args.raw {
-            let program_or_err = parser::parse_instructions(&buffer, &instructions::sets::riscv_g());
+            let program_or_err =
+                parser::parse_instructions(&buffer, &instructions::sets::riscv_g());
             if program_or_err.is_err() {
                 eprintln!("Failed to decode raw instructions.");
                 continue;
