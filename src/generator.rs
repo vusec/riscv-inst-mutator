@@ -24,7 +24,10 @@ impl InstGenerator {
         arg: &'static ArgumentSpec,
     ) -> Argument {
         if rand.below(100) < 30 {
-            let filtered = self.known_args.iter().filter(|x| x.spec() == arg);
+            let filtered = self
+                .known_args
+                .iter()
+                .filter(|x| x.spec().length() == arg.length());
             let options = filtered.collect::<Vec<&Argument>>();
             if !options.is_empty() {
                 return rand.choose(options).clone();
