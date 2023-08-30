@@ -52,6 +52,13 @@ inline void reportFuzzingIssue(std::string reason, std::string pathToTestCase) {
     std::stringstream testCaseHash;
     testCaseHash << std::hex << testCaseHashVal;
 
+    // Replace all spaces with underscores to make the file names less annoying
+    // to work with in bash scripts.
+    for (char &c : reason) {
+        if (c == ' ')
+          c = '_';
+    }
+
     std::string savedFileName = std::string(causeDir) + "/" + reason + "%";
     // Use only the first 16 bytes of the hash to avoid too long file names.
     const unsigned hashSize = 16;

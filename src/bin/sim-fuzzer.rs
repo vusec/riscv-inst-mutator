@@ -138,6 +138,10 @@ pub fn main() {
     cause_dir.push("causes");
     std::fs::create_dir_all(cause_dir.clone()).expect("Failed to create 'causes' directory.");
 
+    let mut start_time_marker = out_dir.clone();
+    start_time_marker.push("start_time_marker");
+    std::fs::File::create(start_time_marker).expect("Failed to create start time marker");
+
     std::env::set_var(FUZZING_CAUSE_DIR_VAR, cause_dir.as_os_str());
 
     // If asked to save inputs, set the environment variable so the driver can
