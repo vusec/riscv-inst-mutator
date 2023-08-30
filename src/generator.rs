@@ -5,12 +5,18 @@ use crate::instructions::{Argument, ArgumentSpec, Instruction, InstructionTempla
 pub struct InstGenerator {
     /// List of known arguments the generator should try to reuse.
     known_args: Vec<Argument>,
+    // Chance (0-100) of reusing a known arg value in the program.
+    reuse_chance : u64,
+    // Chance (0-100) of choosing a power of two as arg value.
+    power_of_two_chance : u64,
 }
 
 impl InstGenerator {
     pub fn new() -> Self {
         Self {
             known_args: Vec::<Argument>::new(),
+            reuse_chance: 50,
+            power_of_two_chance: 50,
         }
     }
 
@@ -23,7 +29,7 @@ impl InstGenerator {
         rand: &mut R,
         arg: &'static ArgumentSpec,
     ) -> Argument {
-        if rand.below(100) < 30 {
+        if rand.below(100) < self.reuse_chance {
             let filtered = self
                 .known_args
                 .iter()
@@ -34,7 +40,11 @@ impl InstGenerator {
             }
         }
 
-        Argument::new(arg, rand.below(arg.max_value() as u64) as u32)
+        if rand.below(100) < self.power_of_two_chance {
+            Argument::new(arg, 1 << rand.below(arg.length() as u64) as u32)
+        } else {
+            Argument::new(arg, rand.below(arg.max_value() as u64) as u32)
+        }
     }
 
     pub fn generate_instruction<R: libafl::prelude::Rand>(
