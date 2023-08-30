@@ -18,7 +18,7 @@ fn find_template(name: String) -> Result<&'static InstructionTemplate, String> {
             return Ok(inst);
         }
     }
-    return Err("Could not find instruction with name ".to_owned() + &name);
+    return Err(format!("Could not find instruction with name '{}'", &name));
 }
 
 fn parse_arg(inst: &'static InstructionTemplate, arg_str: String) -> Result<Argument, String> {
@@ -76,8 +76,9 @@ fn parse_arg(inst: &'static InstructionTemplate, arg_str: String) -> Result<Argu
 fn parse_inst(line: String) -> Result<Instruction, String> {
     // Remove comments.
     let without_comment = line.split("#").nth(0).unwrap();
+    let stripped = without_comment.trim();
 
-    let mut parts = without_comment.split(" ").clone();
+    let mut parts = stripped.split(" ").clone();
     let name = parts.nth(0).clone();
     let inst = find_template(name.unwrap().to_string())?;
 
@@ -86,6 +87,9 @@ fn parse_inst(line: String) -> Result<Instruction, String> {
     let mut seen_ops = HashSet::<String>::new();
 
     for arg_str in parts {
+        if arg_str.trim().is_empty() {
+            continue;
+        }
         let arg = parse_arg(inst, arg_str.to_string());
         if arg.is_err() {
             return Err(format!(
