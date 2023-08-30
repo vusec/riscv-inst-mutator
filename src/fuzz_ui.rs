@@ -150,10 +150,11 @@ fn summarize_findings(data: &FuzzUIData) -> Vec<String> {
         let diff_time = creation_unix_time - data.start_time;
 
         let filename = cause.file_name().into_string().unwrap();
-        let cause_str = filename.split("%").nth(0);
+        let cause_str = filename.split("%").nth(0).or(Some("Bad cause name")).unwrap();
+        let display_str = cause_str.replace("_", " ");
 
         case_list.push(TestCaseData {
-            cause: cause_str.or(Some("Bad cause name")).unwrap().to_string(),
+            cause: display_str.to_string(),
             time_to_exposure: diff_time,
         })
     }
