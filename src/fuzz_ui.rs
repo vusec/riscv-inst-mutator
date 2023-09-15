@@ -158,10 +158,7 @@ fn summarize_findings(data: &FuzzUIData) -> Vec<String> {
         result.push(res);
     }
     for case in &case_list.still_missing {
-        let res = format!(
-            "{} (Missing)",
-            case
-        );
+        let res = format!("{} (Missing)", case);
         result.push(res);
     }
     result
@@ -183,13 +180,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
 
     let findings: Vec<ListItem> = cause_list
         .iter()
-        .map(|i|
+        .map(|i| {
             if i.contains("Missing") {
                 ListItem::new(i.as_str()).style(Style::default().fg(Color::Red))
             } else {
                 ListItem::new(i.as_str()).style(Style::default())
             }
-        )
+        })
         .collect();
     let findings_list =
         List::new(findings).block(Block::default().borders(Borders::ALL).title("Findings"));

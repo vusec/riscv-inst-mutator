@@ -40,7 +40,7 @@ use libafl::{
 use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,
-    causes::{FUZZING_CAUSE_DIR_VAR, list_causes},
+    causes::{list_causes, FUZZING_CAUSE_DIR_VAR},
     fuzz_ui::FuzzUI,
     instructions::{
         riscv::{
