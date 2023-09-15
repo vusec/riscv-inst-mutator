@@ -69,6 +69,7 @@ pub fn list_causes(start_time: std::time::Duration) -> CausesList {
     for m in expected {
         missing.push(m);
     }
+    missing.sort();
 
     if missing.is_empty() {
         File::create(get_found_all_path()).expect("Failed to create found_all_path");
