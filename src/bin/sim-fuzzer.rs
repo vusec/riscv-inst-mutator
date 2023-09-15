@@ -40,7 +40,8 @@ use libafl::{
 use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,
-    fuzz_ui::{FuzzUI, FUZZING_CAUSE_DIR_VAR},
+    causes::{FUZZING_CAUSE_DIR_VAR, found_all_bugs, list_causes},
+    fuzz_ui::FuzzUI,
     instructions::{
         riscv::{
             args,
@@ -225,6 +226,7 @@ fn fuzz(
 ) -> Result<(), Error> {
     let ui: Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new(simple_ui)));
     const MAP_SIZE: usize = 2_621_440;
+    let start_time = current_time();
 
     // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
     let monitor = HWFuzzMonitor::new(ui);
@@ -368,6 +370,18 @@ fn fuzz(
                     log::error!("last_err error: {}", last_err.err().unwrap());
                 } else {
                     last = last_err.ok().unwrap()
+                }
+
+                // If we have a simple UI, we need to manually list all causes
+                // to check if we found all bugs.
+                if simple_ui {
+                    list_causes(start_time);
+                }
+                // If we found all bugs we wanted to find, stop.
+                if found_all_bugs() {
+                    // LibAFL says we can't return from this function (LOL?),
+                    // so just crash...
+                    panic!("Found all bugs. Not a real error.")
                 }
             }
         };
