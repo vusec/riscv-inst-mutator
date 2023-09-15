@@ -6,9 +6,9 @@ pub struct InstGenerator {
     /// List of known arguments the generator should try to reuse.
     known_args: Vec<Argument>,
     // Chance (0-100) of reusing a known arg value in the program.
-    reuse_chance : u64,
+    reuse_chance: u64,
     // Chance (0-100) of choosing a power of two as arg value.
-    power_of_two_chance : u64,
+    power_of_two_chance: u64,
 }
 
 impl InstGenerator {

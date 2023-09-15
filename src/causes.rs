@@ -1,8 +1,10 @@
 use std::{
     collections::HashSet,
-    io::{BufReader, BufRead, Write},
+    fs::File,
+    io::{BufRead, BufReader, Write},
     path::Path,
-    time::{Duration, UNIX_EPOCH}, fs::File, process::Command,
+    process::Command,
+    time::{Duration, UNIX_EPOCH},
 };
 
 pub const FUZZING_CAUSE_DIR_VAR: &'static str = "FUZZING_CAUSE_DIR";
@@ -19,10 +21,10 @@ fn get_found_all_path() -> String {
     cause_dir + "/../found_all"
 }
 
-fn get_expected() -> HashSet::<String> {
-    let expected_path =
-        std::env::var(FUZZING_EXPECTED_LIST_VAR).expect("Failed to set FUZZING_EXPECTED_LIST env var?");
-        
+fn get_expected() -> HashSet<String> {
+    let expected_path = std::env::var(FUZZING_EXPECTED_LIST_VAR)
+        .expect("Failed to set FUZZING_EXPECTED_LIST env var?");
+
     let file = File::open(expected_path).expect("no such file");
     let buf = BufReader::new(file);
     buf.lines()
@@ -32,8 +34,8 @@ fn get_expected() -> HashSet::<String> {
 }
 
 pub struct CausesList {
-    pub found : Vec::<TestCaseData>,
-    pub still_missing : Vec::<String>
+    pub found: Vec<TestCaseData>,
+    pub still_missing: Vec<String>,
 }
 
 pub fn list_causes(start_time: std::time::Duration) -> CausesList {
@@ -52,7 +54,11 @@ pub fn list_causes(start_time: std::time::Duration) -> CausesList {
         let diff_time = creation_unix_time - start_time;
 
         let filename = cause.file_name().into_string().unwrap();
-        let cause_str = filename.split("%").nth(0).or(Some("Bad cause name")).unwrap();
+        let cause_str = filename
+            .split("%")
+            .nth(0)
+            .or(Some("Bad cause name"))
+            .unwrap();
         let display_str = cause_str.replace("_", " ");
 
         expected.remove(&display_str);
@@ -72,22 +78,26 @@ pub fn list_causes(start_time: std::time::Duration) -> CausesList {
     missing.sort();
 
     if missing.is_empty() {
-        let mut results = File::create(get_found_all_path()).expect("Failed to create found_all_path");
+        let mut results =
+            File::create(get_found_all_path()).expect("Failed to create found_all_path");
 
         for case in &case_list {
-            results.write_all(format!("{} $ {}\n", case.time_to_exposure.as_secs(), case.cause).as_bytes()).expect("Failed to write results");
+            results
+                .write_all(
+                    format!("{} $ {}\n", case.time_to_exposure.as_secs(), case.cause).as_bytes(),
+                )
+                .expect("Failed to write results");
         }
         results.flush().expect("Failed to flush results file");
-        
+
         Command::new("killall")
             .arg("sim-fuzzer")
             .spawn()
             .expect("Failed to kill myself. Oh boy");
     }
 
-    CausesList{
+    CausesList {
         found: case_list,
         still_missing: missing,
     }
-    
 }
