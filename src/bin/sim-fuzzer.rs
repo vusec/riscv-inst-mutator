@@ -40,7 +40,7 @@ use libafl::{
 use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,
-    causes::{FUZZING_CAUSE_DIR_VAR, found_all_bugs, list_causes},
+    causes::{FUZZING_CAUSE_DIR_VAR, list_causes},
     fuzz_ui::FuzzUI,
     instructions::{
         riscv::{
@@ -376,12 +376,6 @@ fn fuzz(
                 // to check if we found all bugs.
                 if simple_ui {
                     list_causes(start_time);
-                }
-                // If we found all bugs we wanted to find, stop.
-                if found_all_bugs() {
-                    // LibAFL says we can't return from this function (LOL?),
-                    // so just crash...
-                    panic!("Found all bugs. Not a real error.")
                 }
             }
         };
