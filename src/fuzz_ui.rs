@@ -7,8 +7,7 @@ use libafl::prelude::{current_time, format_duration_hms};
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     io::{self, Stdout},
-    path::Path,
-    time::{Duration, Instant, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
@@ -20,7 +19,7 @@ use tui::{
     Frame, Terminal,
 };
 
-pub const FUZZING_CAUSE_DIR_VAR: &'static str = "FUZZING_CAUSE_DIR";
+use crate::causes::list_causes;
 
 pub struct FuzzUIData {
     pub max_coverage: Vec<(f64, f64)>,
@@ -132,48 +131,21 @@ impl Drop for FuzzUI {
     }
 }
 
-struct TestCaseData {
-    cause: String,
-    time_to_exposure: Duration,
-}
-
 fn summarize_findings(data: &FuzzUIData) -> Vec<String> {
-    let cause_dir =
-        std::env::var(FUZZING_CAUSE_DIR_VAR).expect("Driver failed to set cause env var?");
-
-    let causes = std::fs::read_dir(Path::new(&cause_dir)).expect("Failed to read causes dir");
-
-    let mut case_list = Vec::<TestCaseData>::new();
-    for cause_or_err in causes {
-        let cause = cause_or_err.unwrap();
-        let creation_time = cause.metadata().unwrap().created().unwrap();
-        let creation_unix_time = creation_time.duration_since(UNIX_EPOCH).unwrap();
-        let diff_time = creation_unix_time - data.start_time;
-
-        let filename = cause.file_name().into_string().unwrap();
-        let cause_str = filename.split("%").nth(0).or(Some("Bad cause name")).unwrap();
-        let display_str = cause_str.replace("_", " ");
-
-        case_list.push(TestCaseData {
-            cause: display_str.to_string(),
-            time_to_exposure: diff_time,
-        })
-    }
+    let case_list = list_causes(data.start_time);
 
     let mut dupes = HashMap::<String, u64>::new();
-    for case in &case_list {
+    for case in &case_list.found {
         dupes.insert(
             case.cause.clone(),
             dupes.get(&case.cause).or(Some(&0)).unwrap() + 1,
         );
     }
 
-    case_list.sort_by_key(|t| t.time_to_exposure);
-
     let mut emitted_causes = HashSet::<String>::new();
 
     let mut result = Vec::<String>::new();
-    for case in &case_list {
+    for case in &case_list.found {
         if !emitted_causes.insert(case.cause.clone()) {
             continue;
         }
@@ -182,6 +154,13 @@ fn summarize_findings(data: &FuzzUIData) -> Vec<String> {
             case.cause,
             format_duration_hms(&case.time_to_exposure),
             dupes.get(&case.cause).unwrap()
+        );
+        result.push(res);
+    }
+    for case in &case_list.still_missing {
+        let res = format!(
+            "{} (Missing))",
+            case
         );
         result.push(res);
     }
