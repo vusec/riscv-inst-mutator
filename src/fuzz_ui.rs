@@ -174,7 +174,7 @@ fn summarize_findings(data: &FuzzUIData) -> Vec<String> {
     let mut result = Vec::<String>::new();
     for case in &case_list {
         if !emitted_causes.insert(case.cause.clone()) {
-            break;
+            continue;
         }
         let res = format!(
             "{} (TTE: {}) Dupes: {}",
