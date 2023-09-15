@@ -1,8 +1,8 @@
 use std::{
     collections::HashSet,
-    io::{BufReader, BufRead},
+    io::{BufReader, BufRead, Write},
     path::Path,
-    time::{Duration, UNIX_EPOCH}, fs::File,
+    time::{Duration, UNIX_EPOCH}, fs::File, process::Command,
 };
 
 pub const FUZZING_CAUSE_DIR_VAR: &'static str = "FUZZING_CAUSE_DIR";
@@ -72,7 +72,17 @@ pub fn list_causes(start_time: std::time::Duration) -> CausesList {
     missing.sort();
 
     if missing.is_empty() {
-        File::create(get_found_all_path()).expect("Failed to create found_all_path");
+        let mut results = File::create(get_found_all_path()).expect("Failed to create found_all_path");
+
+        for case in &case_list {
+            results.write_all(format!("{} $ {}\n", case.time_to_exposure.as_secs(), case.cause).as_bytes()).expect("Failed to write results");
+        }
+        results.flush().expect("Failed to flush results file");
+        
+        Command::new("killall")
+            .arg("sim-fuzzer")
+            .spawn()
+            .expect("Failed to kill myself. Oh boy");
     }
 
     CausesList{
@@ -80,8 +90,4 @@ pub fn list_causes(start_time: std::time::Duration) -> CausesList {
         still_missing: missing,
     }
     
-}
-
-pub fn found_all_bugs() -> bool {
-    std::fs::metadata(get_found_all_path()).is_ok()
 }
