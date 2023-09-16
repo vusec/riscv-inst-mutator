@@ -1,4 +1,6 @@
 use core::time::Duration;
+use std::fs::File;
+use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 use libafl::prelude::current_time;
@@ -12,6 +14,7 @@ pub struct HWFuzzMonitor {
     start_time: Duration,
     client_stats: Vec<ClientStats>,
     ui: Arc<Mutex<FuzzUI>>,
+    iterations_log_path : String,
 }
 
 impl Monitor for HWFuzzMonitor {
@@ -47,6 +50,18 @@ impl Monitor for HWFuzzMonitor {
                     data.add_max_coverage(bits as f64);
                 }
             }
+
+            let time_since_start = current_time() - self.start_time;
+
+            // Write the current time and iterations to a log file. This can
+            // be used to find infer iterations-to-exposure from the
+            // time-to-exposure data we log.
+            let mut iterations_log =
+            File::create(&self.iterations_log_path).expect("Failed to open iterations log file");
+            iterations_log
+                .write_all(
+                    format!("{} {}\n", time_since_start.as_secs(), execs).as_bytes(),
+                ).expect("Failed to update iterations log file");
 
             let mut msg = format!(
                 "time: {}, corpus: {}, found: {}, execs: {}, exec/sec: {}",
@@ -91,11 +106,13 @@ impl Monitor for HWFuzzMonitor {
 
 impl HWFuzzMonitor {
     /// Creates the monitor, using the `current_time` as `start_time`.
-    pub fn new(ui: Arc<Mutex<FuzzUI>>) -> Self {
+    pub fn new(ui: Arc<Mutex<FuzzUI>>, out_dir : String) -> Self {
+        let log_path = out_dir + "/iterations_time";
         Self {
             start_time: current_time(),
             client_stats: vec![],
             ui,
+            iterations_log_path : log_path,
         }
     }
 }
