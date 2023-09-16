@@ -58,6 +58,7 @@ impl Monitor for HWFuzzMonitor {
             // time-to-exposure data we log.
             let mut iterations_log = OpenOptions::new()
                 .write(true)
+                .create(true)
                 .append(true)
                 .open(&self.iterations_log_path)
                 .expect("Failed to open iterations log file");
