@@ -163,7 +163,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
 
     let top_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(10), Constraint::Length(60)])
+        .constraints([Constraint::Min(10), Constraint::Length(70)])
         .split(chunks[0]);
 
     let cause_list = summarize_findings(data);
