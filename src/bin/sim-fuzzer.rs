@@ -9,7 +9,7 @@ use std::{
 };
 
 use clap::Parser;
-use libafl::prelude::CoreId;
+use libafl::{prelude::CoreId, schedulers::queue};
 use libafl::{
     bolts::{
         current_nanos,
@@ -110,7 +110,7 @@ struct Args {
 
 pub fn main() {
     let args = Args::parse();
-    let mut out_dir = PathBuf::from(args.out);
+    let out_dir = PathBuf::from(args.out);
 
     let mut log_dir = out_dir.clone();
     log_dir.push("logs");
@@ -155,7 +155,8 @@ pub fn main() {
         std::env::set_var("INPUT_STORAGE", inputs_dir.as_os_str());
     }
 
-    out_dir.push("queue");
+    let mut queue_dir = out_dir.clone();
+    queue_dir.push("queue");
 
     let in_dir = PathBuf::from(args.input);
     if !in_dir.is_dir() {
@@ -194,6 +195,7 @@ pub fn main() {
 
     fuzz(
         out_dir,
+        queue_dir,
         crashes,
         &in_dir,
         timeout,
@@ -211,6 +213,7 @@ pub fn main() {
 
 /// The actual fuzzer
 fn fuzz(
+    out_dir: PathBuf,
     base_corpus_dir: PathBuf,
     base_objective_dir: PathBuf,
     _seed_dir: &PathBuf, // Currently unused because seed parsing not implemented.
@@ -228,8 +231,7 @@ fn fuzz(
     const MAP_SIZE: usize = 2_621_440;
     let start_time = current_time();
 
-    // 'While the monitor are state, they are usually used in the broker - which is likely never restarted
-    let monitor = HWFuzzMonitor::new(ui);
+    let monitor = HWFuzzMonitor::new(ui, out_dir.to_str().expect("Out dir is not valid utf-8?").to_owned());
 
     let shmem_provider = UnixShMemProvider::new().expect("Failed to init shared memory");
     let mut shmem_provider_client = shmem_provider.clone();
