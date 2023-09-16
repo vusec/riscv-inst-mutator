@@ -9,7 +9,7 @@ use std::{
 };
 
 use clap::Parser;
-use libafl::prelude::CoreId;
+use libafl::prelude::{ondisk::OnDiskMetadataFormat, CoreId};
 use libafl::{
     bolts::{
         current_nanos,
@@ -287,7 +287,11 @@ fn fuzz(
             // Create the fuzz state.
             let mut state = StdState::new(
                 StdRand::with_seed(current_nanos()),
-                InMemoryOnDiskCorpus::<ProgramInput>::new(corpus_dir).unwrap(),
+                InMemoryOnDiskCorpus::<ProgramInput>::with_meta_format(
+                    corpus_dir,
+                    OnDiskMetadataFormat::Postcard,
+                )
+                .unwrap(),
                 OnDiskCorpus::new(objective_dir).unwrap(),
                 &mut feedback,
                 &mut objective,
