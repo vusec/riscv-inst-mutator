@@ -93,15 +93,6 @@ impl FuzzUI {
                 println!("{}", self.data.messages.front().unwrap());
             }
         }
-
-        let timeout = Duration::from_millis(1);
-        if crossterm::event::poll(timeout).unwrap() {
-            if let Event::Key(key) = event::read().unwrap() {
-                if let KeyCode::Char('q') = key.code {
-                    panic!("Exiting");
-                }
-            }
-        }
     }
 
     pub fn try_tick(&mut self) {
