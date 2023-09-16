@@ -9,7 +9,6 @@ use std::{
 };
 
 use clap::Parser;
-use libafl::{prelude::CoreId, schedulers::queue};
 use libafl::{
     bolts::{
         current_nanos,
@@ -37,6 +36,7 @@ use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
 };
+use libafl::{prelude::CoreId, schedulers::queue};
 use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,
@@ -231,7 +231,13 @@ fn fuzz(
     const MAP_SIZE: usize = 2_621_440;
     let start_time = current_time();
 
-    let monitor = HWFuzzMonitor::new(ui, out_dir.to_str().expect("Out dir is not valid utf-8?").to_owned());
+    let monitor = HWFuzzMonitor::new(
+        ui,
+        out_dir
+            .to_str()
+            .expect("Out dir is not valid utf-8?")
+            .to_owned(),
+    );
 
     let shmem_provider = UnixShMemProvider::new().expect("Failed to init shared memory");
     let mut shmem_provider_client = shmem_provider.clone();
