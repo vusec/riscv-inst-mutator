@@ -15,6 +15,7 @@ pub struct HWFuzzMonitor {
     client_stats: Vec<ClientStats>,
     ui: Arc<Mutex<FuzzUI>>,
     iterations_log_path: String,
+    last_iterations_logged: u64,
 }
 
 impl Monitor for HWFuzzMonitor {
@@ -53,19 +54,34 @@ impl Monitor for HWFuzzMonitor {
 
             let time_since_start = current_time() - self.start_time;
 
-            // Write the current time and iterations to a log file. This can
-            // be used to find infer iterations-to-exposure from the
-            // time-to-exposure data we log.
-            let mut iterations_log = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .append(true)
-                .open(&self.iterations_log_path)
-                .expect("Failed to open iterations log file");
+            // Only log every few hundred iterations the time to avoid creating
+            // a too large log file.
+            let log_every_n_iterations = 500;
+            if execs > self.last_iterations_logged + log_every_n_iterations {
+                self.last_iterations_logged = execs;
 
-            iterations_log
-                .write_all(format!("{} {}\n", time_since_start.as_secs(), execs).as_bytes())
-                .expect("Failed to update iterations log file");
+                // Write the current time and iterations to a log file. This can
+                // be used to find infer iterations-to-exposure from the
+                // time-to-exposure data we log.
+                let mut iterations_log = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .append(true)
+                    .open(&self.iterations_log_path)
+                    .expect("Failed to open iterations log file");
+
+                iterations_log
+                    .write_all(
+                        format!(
+                            "{} {} {}\n",
+                            time_since_start.as_secs(),
+                            execs,
+                            self.corpus_size()
+                        )
+                        .as_bytes(),
+                    )
+                    .expect("Failed to update iterations log file");
+            }
 
             let mut msg = format!(
                 "time: {}, corpus: {}, found: {}, execs: {}, exec/sec: {}",
@@ -117,6 +133,7 @@ impl HWFuzzMonitor {
             client_stats: vec![],
             ui,
             iterations_log_path: log_path,
+            last_iterations_logged: 0,
         }
     }
 }
