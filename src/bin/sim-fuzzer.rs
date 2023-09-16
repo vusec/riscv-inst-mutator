@@ -36,7 +36,7 @@ use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
 };
-use libafl::{prelude::CoreId, schedulers::queue};
+use libafl::{prelude::CoreId};
 use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,
