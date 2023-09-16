@@ -9,6 +9,7 @@ use std::{
 };
 
 use clap::Parser;
+use libafl::prelude::CoreId;
 use libafl::{
     bolts::{
         current_nanos,
@@ -36,7 +37,6 @@ use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
 };
-use libafl::{prelude::CoreId};
 use nix::sys::signal::Signal;
 use riscv_mutator::{
     calibration::DummyCalibration,

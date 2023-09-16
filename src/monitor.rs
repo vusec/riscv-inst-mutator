@@ -1,5 +1,5 @@
 use core::time::Duration;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
@@ -56,8 +56,12 @@ impl Monitor for HWFuzzMonitor {
             // Write the current time and iterations to a log file. This can
             // be used to find infer iterations-to-exposure from the
             // time-to-exposure data we log.
-            let mut iterations_log = File::create(&self.iterations_log_path)
+            let mut iterations_log = OpenOptions::new()
+                .write(true)
+                .append(true)
+                .open(&self.iterations_log_path)
                 .expect("Failed to open iterations log file");
+
             iterations_log
                 .write_all(format!("{} {}\n", time_since_start.as_secs(), execs).as_bytes())
                 .expect("Failed to update iterations log file");
