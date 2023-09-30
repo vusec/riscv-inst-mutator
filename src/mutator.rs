@@ -8,7 +8,7 @@ use crate::{
         self,
         riscv::{
             args,
-            rv_i::{AUIPC, JALR},
+            rv_i::{AUIPC, JALR, ADDI},
         },
         Argument, Instruction,
     },
@@ -33,6 +33,8 @@ pub enum Mutation {
     SwapTwo,
     // Removes a single instruction.
     Remove,
+    // Replaces an instruction with a nop.
+    ReplaceWithNop,
     Snippet,
 }
 
@@ -235,6 +237,18 @@ impl RiscVInstructionMutator {
             Mutation::Remove => {
                 program.remove(valid_pos(rng)?);
             }
+            Mutation::ReplaceWithNop => {
+                let pos = valid_pos(rng)?;
+                let old_inst = program[pos].clone();
+                let nop = Instruction::new(
+                    &ADDI,
+                    vec![
+                        Argument::new(&args::RD, 0),
+                        Argument::new(&args::RS1, 0),
+                        Argument::new(&args::IMM12, 0),
+                    ]);
+                program[pos] = nop;
+            }
             Mutation::Snippet => {
                 let pos = add_pos(rng);
                 let mut snippet = self.make_snippet(rng);
@@ -267,6 +281,22 @@ pub fn all_riscv_mutations() -> RiscVMutationList {
         RiscVInstructionMutator::new(Mutation::Replace),
         RiscVInstructionMutator::new(Mutation::RepeatSeveral),
         RiscVInstructionMutator::new(Mutation::SwapTwo),
+    )
+}
+
+/// All reducing mutations
+pub type RiscVReducingMutationList = tuple_list_type!(
+    RiscVInstructionMutator,
+    RiscVInstructionMutator,
+    RiscVInstructionMutator,
+);
+
+/// All mutations used to minimize test cases.
+pub fn reducing_mutations() -> RiscVReducingMutationList {
+    tuple_list!(
+        RiscVInstructionMutator::new(Mutation::Remove),
+        RiscVInstructionMutator::new(Mutation::Remove),
+        RiscVInstructionMutator::new(Mutation::ReplaceWithNop),
     )
 }
 
