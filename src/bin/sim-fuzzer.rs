@@ -9,7 +9,6 @@ use std::{
 };
 
 use clap::Parser;
-use libafl::{prelude::{ondisk::OnDiskMetadataFormat, CoreId}, stages::{StdTMinMutationalStage, MapEqualityFactory}};
 use libafl::{
     bolts::{
         current_nanos,
@@ -36,6 +35,10 @@ use libafl::{
 use libafl::{
     events::ProgressReporter,
     prelude::{Cores, EventConfig, Launcher, LlmpRestartingEventManager},
+};
+use libafl::{
+    prelude::{ondisk::OnDiskMetadataFormat, CoreId},
+    stages::{MapEqualityFactory, StdTMinMutationalStage},
 };
 use nix::sys::signal::Signal;
 use riscv_mutator::{

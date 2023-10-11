@@ -8,7 +8,7 @@ use crate::{
         self,
         riscv::{
             args,
-            rv_i::{AUIPC, JALR, ADDI},
+            rv_i::{ADDI, AUIPC, JALR},
         },
         Argument, Instruction,
     },
@@ -246,7 +246,8 @@ impl RiscVInstructionMutator {
                         Argument::new(&args::RD, 0),
                         Argument::new(&args::RS1, 0),
                         Argument::new(&args::IMM12, 0),
-                    ]);
+                    ],
+                );
                 program[pos] = nop;
             }
             Mutation::Snippet => {
