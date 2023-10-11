@@ -46,9 +46,7 @@ impl<'de> Deserialize<'de> for ProgramInput {
 impl HasTargetBytes for ProgramInput {
     fn target_bytes(&self) -> OwnedSlice<u8> {
         let bytes = assemble_instructions(&self.insts);
-        // FIXME: Make this an assert maybe because it slows things down.
-        parse_instructions(&bytes.to_vec(), &instructions::riscv::all())
-            .expect("Failed to parse code that is about to emitted?");
+        debug_assert!(parse_instructions(&bytes.to_vec(), &instructions::riscv::all()).is_ok());
         OwnedSlice::<u8>::from(bytes.to_vec())
     }
 }
