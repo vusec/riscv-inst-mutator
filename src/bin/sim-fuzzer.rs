@@ -419,7 +419,10 @@ fn fuzz(
         .broker_port(actual_port)
         .run_client(&mut run_client);
 
-    let launcher = launcher.stdout_file(Some("/dev/null"));
+    let mut launcher_log_file = out_dir.clone();
+    launcher_log_file.push("launch_log");
+
+    let launcher = launcher.stdout_file(Some(launcher_log_file.to_str().unwrap()));
     match launcher.build().launch() {
         Ok(()) => (),
         Err(Error::ShuttingDown) => {
