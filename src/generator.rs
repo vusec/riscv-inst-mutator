@@ -36,7 +36,8 @@ impl InstGenerator {
                 .filter(|x| x.spec().length() == arg.length());
             let options = filtered.collect::<Vec<&Argument>>();
             if !options.is_empty() {
-                return rand.choose(options).clone();
+                let chosen = rand.choose(options).clone();
+                return Argument::new(arg, chosen.value());
             }
         }
 
