@@ -239,7 +239,6 @@ impl RiscVInstructionMutator {
             }
             Mutation::ReplaceWithNop => {
                 let pos = valid_pos(rng)?;
-                let old_inst = program[pos].clone();
                 let nop = Instruction::new(
                     &ADDI,
                     vec![
