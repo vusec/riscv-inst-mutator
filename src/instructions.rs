@@ -1,4 +1,4 @@
-use std::iter::Flatten;
+use std::iter::{Flatten, zip};
 
 pub type EncodedInstruction = u32;
 
@@ -190,6 +190,13 @@ impl Instruction {
     }
 
     pub fn new(template: &'static InstructionTemplate, arguments: Vec<Argument>) -> Instruction {
+
+        // Check that the arguments match the template's arguments.
+        debug_assert_eq!(template.operands().count(), arguments.len());
+        for i in zip(arguments.clone().into_iter(), template.operands().into_iter()) {
+            debug_assert_eq!(i.0.spec.name, i.1.name);
+        }
+
         Instruction {
             template,
             arguments,
@@ -220,33 +227,30 @@ mod tests {
     use crate::instructions::*;
 
     #[test]
-    fn encode_add_rs1_1() {
-        let inst = Instruction::new(&ADD, vec![Argument::new(&args::RS1, 1u32)]);
-        assert_eq!(inst.encode(), 0x00008033);
-    }
-
-    #[test]
-    fn encode_add_rs1_2() {
-        let inst = Instruction::new(&ADD, vec![Argument::new(&args::RS1, 2u32)]);
-        assert_eq!(inst.encode(), 0x00010033);
-    }
-
-    #[test]
-    fn encode_add_rs2_1() {
-        let inst = Instruction::new(&ADD, vec![Argument::new(&args::RS2, 1u32)]);
-        assert_eq!(inst.encode(), 0x00100033);
-    }
-
-    #[test]
-    fn encode_add_rd1_1() {
-        let inst = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
-        assert_eq!(inst.encode(), 0x000000B3);
+    fn encode_add() {
+        let inst = Instruction::new(&ADD,
+            vec![
+                Argument::new(&args::RD, 1),
+                Argument::new(&args::RS1, 2),
+                Argument::new(&args::RS2, 4),
+            ],);
+        assert_eq!(inst.encode(), 0x004100b3);
     }
 
     #[test]
     fn compare_inst() {
-        let inst1 = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
-        let inst2 = Instruction::new(&ADD, vec![Argument::new(&args::RD, 1u32)]);
+        let inst1 = Instruction::new(&ADD,
+            vec![
+                Argument::new(&args::RD, 1),
+                Argument::new(&args::RS1, 2),
+                Argument::new(&args::RS2, 4),
+            ],);
+        let inst2 = Instruction::new(&ADD,
+            vec![
+                Argument::new(&args::RD, 1),
+                Argument::new(&args::RS1, 2),
+                Argument::new(&args::RS2, 4),
+            ]);
         assert!(inst1 == inst2);
     }
 
