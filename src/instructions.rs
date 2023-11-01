@@ -1,4 +1,4 @@
-use std::iter::{Flatten, zip};
+use std::iter::{zip, Flatten};
 
 pub type EncodedInstruction = u32;
 
@@ -190,10 +190,12 @@ impl Instruction {
     }
 
     pub fn new(template: &'static InstructionTemplate, arguments: Vec<Argument>) -> Instruction {
-
         // Check that the arguments match the template's arguments.
         debug_assert_eq!(template.operands().count(), arguments.len());
-        for i in zip(arguments.clone().into_iter(), template.operands().into_iter()) {
+        for i in zip(
+            arguments.clone().into_iter(),
+            template.operands().into_iter(),
+        ) {
             debug_assert_eq!(i.0.spec.name, i.1.name);
         }
 
@@ -228,29 +230,35 @@ mod tests {
 
     #[test]
     fn encode_add() {
-        let inst = Instruction::new(&ADD,
+        let inst = Instruction::new(
+            &ADD,
             vec![
                 Argument::new(&args::RD, 1),
                 Argument::new(&args::RS1, 2),
                 Argument::new(&args::RS2, 4),
-            ],);
+            ],
+        );
         assert_eq!(inst.encode(), 0x004100b3);
     }
 
     #[test]
     fn compare_inst() {
-        let inst1 = Instruction::new(&ADD,
+        let inst1 = Instruction::new(
+            &ADD,
             vec![
                 Argument::new(&args::RD, 1),
                 Argument::new(&args::RS1, 2),
                 Argument::new(&args::RS2, 4),
-            ],);
-        let inst2 = Instruction::new(&ADD,
+            ],
+        );
+        let inst2 = Instruction::new(
+            &ADD,
             vec![
                 Argument::new(&args::RD, 1),
                 Argument::new(&args::RS1, 2),
                 Argument::new(&args::RS2, 4),
-            ]);
+            ],
+        );
         assert!(inst1 == inst2);
     }
 

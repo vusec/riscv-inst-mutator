@@ -43,6 +43,8 @@ impl Monitor for HWFuzzMonitor {
             let mut ui = self.ui.lock().unwrap();
             let data = ui.data();
 
+            data.add_corpus_size(self.corpus_size());
+
             for (key, val) in &client.user_monitor {
                 if key == "shared_mem" {
                     let str = val.to_string();

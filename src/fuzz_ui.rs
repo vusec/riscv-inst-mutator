@@ -11,7 +11,7 @@ use std::{
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     symbols,
     text::Span,
@@ -21,8 +21,19 @@ use tui::{
 
 use crate::causes::list_causes;
 
+// Every nth corpus increase that should be logged.
+const EVERY_N_CORPUS: u64 = 30;
+
+pub struct TimeData {
+    time: f64,
+    corpus_size: u64,
+    rel_time: f64,
+}
+
 pub struct FuzzUIData {
     pub max_coverage: Vec<(f64, f64)>,
+    pub time_since_last_find: Vec<TimeData>,
+    time_since_last_find_group: f64,
     // idiotic libafl folks decided that time point = duration (???)
     start_time: std::time::Duration,
     messages: VecDeque<String>,
@@ -36,6 +47,23 @@ impl FuzzUIData {
         // Only keep the last 200 messages as we won't be able to display
         // more than that with any reasonable terminal size.
         self.max_coverage.shrink_to(200);
+    }
+
+    pub fn add_corpus_size(&mut self, corpus_size: u64) {
+        let last = self.time_since_last_find.last().unwrap();
+        let time = self.rel_time_secs();
+        let rel_time = time - last.time;
+        self.time_since_last_find_group = rel_time;
+
+        if last.corpus_size + EVERY_N_CORPUS >= corpus_size {
+            return;
+        }
+
+        self.time_since_last_find.push(TimeData {
+            time: time,
+            corpus_size: corpus_size,
+            rel_time: rel_time,
+        });
     }
 
     pub fn add_message(&mut self, value: String) {
@@ -55,11 +83,19 @@ pub struct FuzzUI {
 
 impl FuzzUI {
     pub fn new(simple_ui: bool) -> FuzzUI {
-        let data = FuzzUIData {
+        let mut data = FuzzUIData {
             max_coverage: Vec::<(f64, f64)>::new(),
+            time_since_last_find: Vec::<TimeData>::new(),
+            time_since_last_find_group: 0.0,
             start_time: current_time(),
             messages: VecDeque::<String>::new(),
         };
+        data.time_since_last_find.push(TimeData {
+            time: 0.0,
+            corpus_size: 0,
+            rel_time: 0.0,
+        });
+
         if !simple_ui {
             // setup terminal
             enable_raw_mode().expect("Failed to enable raw terminal mode");
@@ -155,47 +191,7 @@ fn summarize_findings(data: &FuzzUIData) -> Vec<String> {
     result
 }
 
-fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
-    let size = f.size();
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(size);
-
-    let top_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(10), Constraint::Length(70)])
-        .split(chunks[0]);
-
-    let cause_list = summarize_findings(data);
-
-    let findings: Vec<ListItem> = cause_list
-        .iter()
-        .map(|i| {
-            if i.contains("Missing") {
-                ListItem::new(i.as_str()).style(Style::default().fg(Color::Red))
-            } else {
-                ListItem::new(i.as_str()).style(Style::default())
-            }
-        })
-        .collect();
-    let findings_list =
-        List::new(findings).block(Block::default().borders(Borders::ALL).title("Findings"));
-
-    f.render_widget(findings_list, top_chunks[1]);
-
-    // Iterate through all elements in the `items` app and append some debug text to it.
-    let items: Vec<ListItem> = data
-        .messages
-        .iter()
-        .map(|i| ListItem::new(i.as_str()).style(Style::default()))
-        .collect();
-
-    let items = List::new(items).block(Block::default().borders(Borders::ALL).title("Messages"));
-
-    // We can now render the item list
-    f.render_widget(items, top_chunks[0]);
-
+fn render_coverage<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData, chunk: Rect) {
     let last_slot = data
         .max_coverage
         .last()
@@ -259,5 +255,119 @@ fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
                     ),
                 ]),
         );
-    f.render_widget(chart, chunks[1]);
+    f.render_widget(chart, chunk);
+}
+
+fn render_time_between_findings<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData, chunk: Rect) {
+    let max_time = format_duration_hms(&(current_time() - data.start_time));
+
+    let mut max_rel_time = 0.0;
+    for time in &data.time_since_last_find {
+        if time.rel_time > max_rel_time {
+            max_rel_time = time.rel_time;
+        }
+    }
+
+    let mut rel_time_list: Vec<(f64, f64)> = data
+        .time_since_last_find
+        .iter()
+        .map(|time_data| (time_data.time, time_data.rel_time))
+        .collect();
+    rel_time_list.push((data.rel_time_secs(), data.time_since_last_find_group));
+
+    let datasets = vec![Dataset::default()
+        .name("")
+        .marker(symbols::Marker::Braille)
+        .style(Style::default().fg(Color::Yellow))
+        .graph_type(GraphType::Line)
+        .data(rel_time_list.as_slice())];
+
+    let chart = Chart::new(datasets)
+        .block(
+            Block::default()
+                .title(Span::styled(
+                    "Time between corpus findings",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ))
+                .borders(Borders::ALL),
+        )
+        .x_axis(
+            Axis::default()
+                .title("Elapsed time (ms)")
+                .style(Style::default().fg(Color::Gray))
+                .bounds([0.0, data.rel_time_secs()])
+                .labels(vec![
+                    Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        format!("{}", max_time),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
+                ]),
+        )
+        .y_axis(
+            Axis::default()
+                .title("Time since last find (s)")
+                .style(Style::default().fg(Color::Gray))
+                .bounds([0.0, max_rel_time * 1.2])
+                .labels(vec![
+                    Span::styled("0", Style::default().add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        format!("{:.2}", max_rel_time),
+                        Style::default().add_modifier(Modifier::BOLD),
+                    ),
+                ]),
+        );
+    f.render_widget(chart, chunk);
+}
+
+fn ui<B: Backend>(f: &mut Frame<B>, data: &FuzzUIData) {
+    let size = f.size();
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(size);
+
+    let top_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Min(10), Constraint::Length(70)])
+        .split(chunks[0]);
+
+    let bottom_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(chunks[1]);
+
+    let cause_list = summarize_findings(data);
+
+    let findings: Vec<ListItem> = cause_list
+        .iter()
+        .map(|i| {
+            if i.contains("Missing") {
+                ListItem::new(i.as_str()).style(Style::default().fg(Color::Red))
+            } else {
+                ListItem::new(i.as_str()).style(Style::default())
+            }
+        })
+        .collect();
+    let findings_list =
+        List::new(findings).block(Block::default().borders(Borders::ALL).title("Findings"));
+
+    f.render_widget(findings_list, top_chunks[1]);
+
+    // Iterate through all elements in the `items` app and append some debug text to it.
+    let items: Vec<ListItem> = data
+        .messages
+        .iter()
+        .map(|i| ListItem::new(i.as_str()).style(Style::default()))
+        .collect();
+
+    let items = List::new(items).block(Block::default().borders(Borders::ALL).title("Messages"));
+
+    // We can now render the item list
+    f.render_widget(items, top_chunks[0]);
+
+    render_coverage(f, data, bottom_chunks[0]);
+    render_time_between_findings(f, data, bottom_chunks[1]);
 }
