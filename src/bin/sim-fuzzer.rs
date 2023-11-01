@@ -342,37 +342,16 @@ fn fuzz(
             //         process::exit(0);
             //     });
 
-            // Always add at least one dummy seed otherwise LibAFL crashes...
-            // Do this after loading the seed folder as LibAFL otherwise also crashes...
-            // We have to do at least one load in the initial seed otherwise our
-            // feedback somehow causes libafl to break...
-            let auipc = Instruction::new(&AUIPC, vec![Argument::new(&args::RD, 1u32)]);
-            let load = Instruction::new(
-                &LD,
-                vec![
-                    Argument::new(&args::RD, 2u32),
-                    Argument::new(&args::RS1, 1u32),
-                ],
-            );
-            // Add some random instructions to the seed.
-            let pad_inst1 = Instruction::new(
+            let nop = Instruction::new(
                 &ADDI,
                 vec![
-                    Argument::new(&args::RD, 3u32),
-                    Argument::new(&args::RS1, 1u32),
-                    Argument::new(&args::IMM20, 8u32),
-                ],
-            );
-            let pad_inst2 = Instruction::new(
-                &ADDI,
-                vec![
-                    Argument::new(&args::RD, 2u32),
-                    Argument::new(&args::RS1, 3u32),
-                    Argument::new(&args::IMM20, 4u32),
+                    Argument::new(&args::RD, 0u32),
+                    Argument::new(&args::RS1, 0u32),
+                    Argument::new(&args::IMM20, 0u32),
                 ],
             );
 
-            let init = ProgramInput::new([auipc, load, pad_inst1, pad_inst2].to_vec());
+            let init = ProgramInput::new([nop].to_vec());
             fuzzer
                 .add_input(&mut state, &mut executor, &mut mgr, init)
                 .expect("Failed to load initial inputs");
