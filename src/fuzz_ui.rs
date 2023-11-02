@@ -22,7 +22,7 @@ use tui::{
 use crate::causes::list_causes;
 
 // Every nth corpus increase that should be logged.
-const EVERY_N_CORPUS: u64 = 100;
+const EVERY_N_CORPUS: u64 = 1000;
 
 pub struct TimeData {
     time: f64,
