@@ -75,10 +75,11 @@ impl Monitor for HWFuzzMonitor {
                 iterations_log
                     .write_all(
                         format!(
-                            "{} {} {}\n",
+                            "{} {} {} {}\n",
                             time_since_start.as_secs(),
                             execs,
-                            self.corpus_size()
+                            self.corpus_size(),
+                            data.get_max_coverage() as u64
                         )
                         .as_bytes(),
                     )

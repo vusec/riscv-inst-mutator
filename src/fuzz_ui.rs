@@ -39,6 +39,10 @@ pub struct FuzzUIData {
 }
 
 impl FuzzUIData {
+    pub fn get_max_coverage(&self) -> f64 {
+        self.max_coverage.last().ok_or((0.0, 0.0)).unwrap().1
+    }
+
     pub fn add_max_coverage(&mut self, value: f64) {
         if self.max_coverage.is_empty() || self.max_coverage.last().unwrap().1 < value {
             self.max_coverage.push((self.rel_time_secs(), value))
