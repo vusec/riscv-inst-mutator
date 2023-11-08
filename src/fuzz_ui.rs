@@ -25,8 +25,11 @@ use crate::causes::list_causes;
 const EVERY_N_CORPUS: u64 = 1000;
 
 pub struct TimeData {
+    // The time when this data point was created.
     time: f64,
+    // The corpus size at this data point.
     corpus_size: u64,
+    // the time per finding since the last time data group.
     rel_time: f64,
 }
 
@@ -53,11 +56,14 @@ impl FuzzUIData {
     }
 
     pub fn add_corpus_size(&mut self, corpus_size: u64) {
+        // Keep track how long it took us to find the newest corpus item.
         let last = self.time_since_last_find.last().unwrap();
         let time = self.rel_time_secs();
-        let rel_time = time - last.time;
+        let rel_time = (time - last.time) / (EVERY_N_CORPUS as f64);
         self.time_since_last_find_group = rel_time;
 
+        // Just few findings, we store the relative time to make a nice graph
+        // in the UI.
         if last.corpus_size + EVERY_N_CORPUS >= corpus_size {
             return;
         }
