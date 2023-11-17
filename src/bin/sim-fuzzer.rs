@@ -295,7 +295,7 @@ fn fuzz(
                 StdRand::with_seed(current_nanos()),
                 CachedOnDiskCorpus::<ProgramInput>::with_meta_format(
                     corpus_dir,
-                    /*programs to keep in cache */10,
+                    /*programs to keep in cache */100,
                     OnDiskMetadataFormat::Postcard,
                 )
                 .unwrap(),
