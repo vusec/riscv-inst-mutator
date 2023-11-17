@@ -17,7 +17,7 @@ use libafl::{
         tuples::tuple_list,
         AsMutSlice,
     },
-    corpus::{InMemoryOnDiskCorpus, OnDiskCorpus},
+    corpus::{InMemoryOnDiskCorpus, OnDiskCorpus, CachedOnDiskCorpus},
     executors::forkserver::{ForkserverExecutor, TimeoutForkserverExecutor},
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
@@ -294,8 +294,9 @@ fn fuzz(
             // Create the fuzz state.
             let mut state = StdState::new(
                 StdRand::with_seed(current_nanos()),
-                InMemoryOnDiskCorpus::<ProgramInput>::with_meta_format(
+                CachedOnDiskCorpus::<ProgramInput>::with_meta_format(
                     corpus_dir,
+                    /*programs to keep in cache */10,
                     OnDiskMetadataFormat::Postcard,
                 )
                 .unwrap(),
