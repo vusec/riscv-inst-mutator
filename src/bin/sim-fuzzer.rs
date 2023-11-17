@@ -17,7 +17,7 @@ use libafl::{
         tuples::tuple_list,
         AsMutSlice,
     },
-    corpus::{InMemoryOnDiskCorpus, OnDiskCorpus, CachedOnDiskCorpus},
+    corpus::{OnDiskCorpus, CachedOnDiskCorpus},
     executors::forkserver::{ForkserverExecutor, TimeoutForkserverExecutor},
     feedback_or,
     feedbacks::{CrashFeedback, MaxMapFeedback, TimeFeedback},
@@ -48,8 +48,7 @@ use riscv_mutator::{
     instructions::{
         riscv::{
             args,
-            rv64_i::LD,
-            rv_i::{ADDI, AUIPC},
+            rv_i::{ADDI},
         },
         Argument, Instruction,
     },
