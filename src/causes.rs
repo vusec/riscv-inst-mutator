@@ -90,10 +90,13 @@ pub fn list_causes(start_time: std::time::Duration) -> CausesList {
         }
         results.flush().expect("Failed to flush results file");
 
+        // Run killall to stop the fuzzer.
+        // FIXME: That cann't be the only way to stop the fuzzer, but it seems
+        // it is...
         Command::new("killall")
             .arg("sim-fuzzer")
             .spawn()
-            .expect("Failed to kill myself. Oh boy");
+            .expect("Failed to stop sim-fuzzer:");
     }
 
     CausesList {
