@@ -347,7 +347,7 @@ fn fuzz(
                 vec![
                     Argument::new(&args::RD, 0u32),
                     Argument::new(&args::RS1, 0u32),
-                    Argument::new(&args::IMM20, 0u32),
+                    Argument::new(&args::IMM12, 0u32),
                 ],
             );
 
