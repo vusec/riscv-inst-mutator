@@ -38,7 +38,6 @@ use libafl::{
 };
 use libafl::{
     prelude::{ondisk::OnDiskMetadataFormat, CoreId},
-    stages::{MapEqualityFactory, StdTMinMutationalStage},
 };
 use nix::sys::signal::Signal;
 use riscv_mutator::{
@@ -53,7 +52,7 @@ use riscv_mutator::{
         Argument, Instruction,
     },
     monitor::HWFuzzMonitor,
-    mutator::{all_riscv_mutations, reducing_mutations},
+    mutator::{all_riscv_mutations},
     program_input::ProgramInput,
 };
 
@@ -102,8 +101,6 @@ struct Args {
     save_inputs: bool,
     #[arg(short, long, default_value_t = false)]
     simple_ui: bool,
-    #[arg(short, long, default_value_t = false)]
-    minimize: bool,
     #[arg(long, default_value = "explore")]
     scheduler: String,
     #[arg(long, default_value = "default")]
@@ -211,7 +208,6 @@ pub fn main() {
         simple_ui,
         scheduler.copied(),
         port,
-        args.minimize,
     )
     .expect("An error occurred while fuzzing");
 }
@@ -231,7 +227,6 @@ fn fuzz(
     simple_ui: bool,
     schedule: Option<PowerSchedule>,
     port: Option<u16>,
-    minimize: bool,
 ) -> Result<(), Error> {
     let ui: Arc<Mutex<FuzzUI>> = Arc::new(Mutex::new(FuzzUI::new(simple_ui)));
     const MAP_SIZE: usize = 2_621_440;
@@ -309,11 +304,6 @@ fn fuzz(
 
             let power = StdPowerMutationalStage::new(mutator);
 
-            let min_mutator = StdScheduledMutator::new(reducing_mutations());
-            let min_runs = if minimize { 100 } else { 1 };
-            let factory = MapEqualityFactory::with_observer(&edges_observer);
-            let minimizer = StdTMinMutationalStage::new(min_mutator, factory, min_runs);
-
             // A minimization+queue policy to get testcasess from the corpus
             let scheduler = IndexesLenTimeMinimizerScheduler::new(
                 StdWeightedScheduler::with_schedule(&mut state, &edges_observer, schedule),
@@ -357,7 +347,7 @@ fn fuzz(
                 .expect("Failed to load initial inputs");
 
             // First calibrate the initial seed and then mutate.
-            let mut stages = tuple_list!(calibration, power, minimizer);
+            let mut stages = tuple_list!(calibration, power);
 
             // Main fuzzing loop.
             let mut last = current_time();
