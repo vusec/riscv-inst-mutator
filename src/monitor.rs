@@ -48,6 +48,12 @@ impl Monitor for HWFuzzMonitor {
             let mut max_coverage : u64 = 0;
             for (key, val) in &client.user_monitor {
                 if key == "shared_mem" {
+                    // shared_mem has the form:
+                    //  BITS/MAX_BITS (PERCENTAGE%)
+                    // For example:
+                    //  0/2201728 (0%)
+                    //  ^ ^^^^^^^
+                    // We store these two parts.
                     let str = val.to_string();
                     let bit_str = str.split("/").nth(0).unwrap();
                     let bits = u64::from_str_radix(bit_str, 10).unwrap();
@@ -56,7 +62,8 @@ impl Monitor for HWFuzzMonitor {
                     // The second half is the maximum coverage.
                     // This should be constant during the execution.
                     // Changes depending on used coverage, so we log it.
-                    let max_str = str.split("/").nth(1).unwrap();
+                    let right_side = str.split("/").nth(1).unwrap();
+                    let max_str = right_side.split(" (").nth(0).unwrap();
                     max_coverage = u64::from_str_radix(max_str, 10).unwrap();
                 }
             }
