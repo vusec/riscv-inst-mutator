@@ -45,12 +45,19 @@ impl Monitor for HWFuzzMonitor {
 
             data.add_corpus_size(self.corpus_size());
 
+            let mut max_coverage : u64 = 0;
             for (key, val) in &client.user_monitor {
                 if key == "shared_mem" {
                     let str = val.to_string();
                     let bit_str = str.split("/").nth(0).unwrap();
-                    let bits = i64::from_str_radix(bit_str, 10).unwrap();
+                    let bits = u64::from_str_radix(bit_str, 10).unwrap();
                     data.add_max_coverage(bits as f64);
+
+                    // The second half is the maximum coverage.
+                    // This should be constant during the execution.
+                    // Changes depending on used coverage, so we log it.
+                    let max_str = str.split("/").nth(1).unwrap();
+                    max_coverage = u64::from_str_radix(max_str, 10).unwrap();
                 }
             }
 
@@ -75,11 +82,12 @@ impl Monitor for HWFuzzMonitor {
                 iterations_log
                     .write_all(
                         format!(
-                            "{} {} {} {}\n",
+                            "{} {} {} {} {}\n",
                             time_since_start.as_secs(),
                             execs,
                             self.corpus_size(),
-                            data.get_max_coverage() as u64
+                            data.get_max_coverage() as u64,
+                            max_coverage
                         )
                         .as_bytes(),
                     )
