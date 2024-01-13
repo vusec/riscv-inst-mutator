@@ -14,25 +14,17 @@
 
 #include "FuzzerCoverage.h"
 
-/// Saves the given test case and annotates it with the given reason string
-/// that will be displayed in the fuzzing interface.
+/// Returns the path that `reportFuzzingIssue` will save the input to.
 /// @param reason A string that will be displayed in the fuzzing interface.
 /// @param pathToTestCase Path to the test case on disk.
-[[noreturn]]
 __attribute__((no_sanitize("memory")))
-inline void reportFuzzingIssue(std::string reason, std::string pathToTestCase) {
-    completedSimCallback();
-
+inline std::string getFuzzingSavePath(std::string reason, std::string pathToTestCase) {
     // Read the env var set by the fuzzer to figure out where to store the
     // failure reason.
     const char *causeDirVar = "FUZZING_CAUSE_DIR";
     const char *causeDir = std::getenv(causeDirVar);
-    std::cerr << "Found issue: " << reason << "\n";
-    if (!causeDir) {
-        std::cerr << "  Note: " << causeDirVar << " env var not set.\n";
-        std::cerr << "  This is fine if you're running the target manually.\n";
-        abort();
-    }
+    if (!causeDir)
+        return "";
 
     // Hash the test case file to always give the output an unique name.
     // The unique name is only necessary to record duplicates.
@@ -63,6 +55,30 @@ inline void reportFuzzingIssue(std::string reason, std::string pathToTestCase) {
     // Use only the first 16 bytes of the hash to avoid too long file names.
     const unsigned hashSize = 16;
     savedFileName += testCaseHash.str().substr(0, hashSize);
+
+    return savedFileName;
+}
+
+
+/// Saves the given test case and annotates it with the given reason string
+/// that will be displayed in the fuzzing interface.
+/// @param reason A string that will be displayed in the fuzzing interface.
+/// @param pathToTestCase Path to the test case on disk.
+[[noreturn]]
+__attribute__((no_sanitize("memory")))
+inline void reportFuzzingIssue(std::string reason, std::string pathToTestCase) {
+    completedSimCallback();
+
+    std::cerr << "Found issue: " << reason << "\n";
+    const char *causeDirVar = "FUZZING_CAUSE_DIR";
+    const char *causeDir = std::getenv(causeDirVar);
+    if (!causeDir) {
+        std::cerr << "  Note: " << causeDirVar << " env var not set.\n";
+        std::cerr << "  This is fine if you're running the target manually.\n";
+        abort();
+    }
+
+    std::string savedFileName = getFuzzingSavePath(reason, pathToTestCase);
 
     // Copy the original test case to the cause dir.
     // This should probably move the file instead, but there is little
