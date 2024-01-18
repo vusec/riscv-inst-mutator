@@ -111,6 +111,27 @@ inline void fuzzInputCallback(std::string path) {
 
         std::filesystem::copy(path, outPath.str());
     }
+
+    if (const char *counterFolderC = std::getenv("COUNTER_FOLDER")) {
+        // Create a unique file path in the folder.
+        std::string counterFile = counterFolderC;
+        counterFile += "/inputs_" + std::to_string(getpid());
+
+        // Read and hash the file contents.
+        std::ifstream infile(path);
+        std::string inputContents;
+        while (infile) {
+            char c;
+            infile.get(c);
+            inputContents.push_back(c);
+        }
+
+        const std::size_t hashSum = std::hash<std::string>()(inputContents);
+
+        std::ofstream stream(counterFile, std::ios_base::app);
+        stream << std::hex << hashSum;
+        stream << "\n";
+    }
 }
 
 #endif // FUZZER_API
