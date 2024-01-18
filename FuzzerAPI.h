@@ -114,8 +114,11 @@ inline void fuzzInputCallback(std::string path) {
 
     if (const char *counterFolderC = std::getenv("COUNTER_FOLDER")) {
         // Create a unique file path in the folder.
+        // We use the parent pid to reduce the number of files (which all
+        // take up inodes). Each forkserver just has one files, so this is
+        // still save.
         std::string counterFile = counterFolderC;
-        counterFile += "/inputs_" + std::to_string(getpid());
+        counterFile += "/inputs_" + std::to_string(getppid());
 
         // Read and hash the file contents.
         std::ifstream infile(path);
