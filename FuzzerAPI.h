@@ -132,7 +132,7 @@ inline void fuzzInputCallback(std::string path) {
         const std::size_t hashSum = std::hash<std::string>()(inputContents);
 
         std::ofstream stream(counterFile, std::ios_base::app);
-        stream << std::hex << hashSum;
+        stream << std::hex << hashSum << std::dec << " " << inputContents.size();
         stream << "\n";
     }
 }
