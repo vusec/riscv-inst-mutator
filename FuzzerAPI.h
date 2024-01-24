@@ -131,8 +131,18 @@ inline void fuzzInputCallback(std::string path) {
 
         const std::size_t hashSum = std::hash<std::string>()(inputContents);
 
+        // 1.1.2024 as a custom epoch. Saves a few megabyte when printing
+        // many relative time stamps.
+        const std::int64_t customEpoch = 1704063600;
+
+        const auto now = std::chrono::system_clock::now();
+        const auto timeStamp = std::chrono::duration_cast<std::chrono::seconds>(
+                        now.time_since_epoch()).count();
+
         std::ofstream stream(counterFile, std::ios_base::app);
-        stream << std::hex << hashSum << std::dec << " " << inputContents.size();
+        stream << std::hex << hashSum;
+        stream << std::hex << " " << inputContents.size();
+        stream << std::hex << " " << (timeStamp - customEpoch);
         stream << "\n";
     }
 }
