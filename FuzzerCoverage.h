@@ -1,6 +1,7 @@
 #ifndef FUZZER_COVERAGE
 #define FUZZER_COVERAGE
 
+#include <bitset>
 #include <cstdlib>
 #include <cstdint>
 #include <iostream>
@@ -66,10 +67,7 @@ inline void completedSimCallback() {
     char *map_ptr = getCoverageMapPtr();
 
     for (uint32_t i = 0; i < __afl_map_size; ++i) {
-        if (map_ptr[i])
-          output << "1\n";
-        else
-          output << "0\n";
+      output << std::bitset<8>(map_ptr[i]);
     }
   }
 }
