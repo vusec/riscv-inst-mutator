@@ -121,26 +121,26 @@ impl RiscVInstructionMutator {
 
     fn make_snippet<Rng: Rand>(&self, rng: &mut Rng) -> Vec<Instruction> {
         // Creates:
-        //   auipc x1, 0
-        //   jalr x1, random_offset(x1)
+        //   auipc x2, 0
+        //   jalr x1, random_offset(x2)
         let make_call = |rng: &mut Rng| -> Vec<Instruction> {
-            let raw_offset: u32 = rng.below(16) as u32;
-            let offset: u32 = if rng.below(2) == 0 {
-                !raw_offset
-            } else {
-                raw_offset
-            };
+            let raw_offset: u32 = rng.below(64) as u32;
+            // let offset: u32 = if rng.below(2) == 0 {
+            //     !raw_offset
+            // } else {
+            //     raw_offset
+            // };
             vec![
                 Instruction::new(
                     &AUIPC,
-                    vec![Argument::new(&args::RD, 1), Argument::new(&args::IMM20, 0)],
+                    vec![Argument::new(&args::RD, 2), Argument::new(&args::IMM20, 0)],
                 ),
                 Instruction::new(
                     &JALR,
                     vec![
                         Argument::new(&args::RD, 1),
-                        Argument::new(&args::RS1, 1),
-                        Argument::new(&args::IMM12, offset),
+                        Argument::new(&args::RS1, 2),
+                        Argument::new(&args::IMM12, raw_offset*4),
                     ],
                 ),
             ]
@@ -270,6 +270,7 @@ pub type RiscVMutationList = tuple_list_type!(
     RiscVInstructionMutator,
     RiscVInstructionMutator,
     RiscVInstructionMutator,
+    RiscVInstructionMutator,
 );
 
 /// Provides a list of all supported RISC-V instruction mutators.
@@ -281,6 +282,7 @@ pub fn all_riscv_mutations() -> RiscVMutationList {
         RiscVInstructionMutator::new(Mutation::Replace),
         RiscVInstructionMutator::new(Mutation::RepeatSeveral),
         RiscVInstructionMutator::new(Mutation::SwapTwo),
+        RiscVInstructionMutator::new(Mutation::Snippet),
     )
 }
 
