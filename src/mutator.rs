@@ -271,16 +271,28 @@ pub type RiscVMutationList = tuple_list_type!(
     RiscVInstructionMutator,
     RiscVInstructionMutator,
     RiscVInstructionMutator,
+    RiscVInstructionMutator,
+    RiscVInstructionMutator,
+    RiscVInstructionMutator,
+    RiscVInstructionMutator,
+    RiscVInstructionMutator,
+    RiscVInstructionMutator,
 );
 
 /// Provides a list of all supported RISC-V instruction mutators.
 pub fn all_riscv_mutations() -> RiscVMutationList {
     tuple_list!(
         RiscVInstructionMutator::new(Mutation::Add),
+        RiscVInstructionMutator::new(Mutation::Add),
+        RiscVInstructionMutator::new(Mutation::Remove),
         RiscVInstructionMutator::new(Mutation::Remove),
         RiscVInstructionMutator::new(Mutation::ReplaceArg),
+        RiscVInstructionMutator::new(Mutation::ReplaceArg),
+        RiscVInstructionMutator::new(Mutation::Replace),
         RiscVInstructionMutator::new(Mutation::Replace),
         RiscVInstructionMutator::new(Mutation::RepeatSeveral),
+        RiscVInstructionMutator::new(Mutation::RepeatSeveral),
+        RiscVInstructionMutator::new(Mutation::SwapTwo),
         RiscVInstructionMutator::new(Mutation::SwapTwo),
         RiscVInstructionMutator::new(Mutation::Snippet),
     )
