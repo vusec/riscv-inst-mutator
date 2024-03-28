@@ -15,8 +15,8 @@ impl InstGenerator {
     pub fn new() -> Self {
         Self {
             known_args: Vec::<Argument>::new(),
-            reuse_chance: 50,
-            power_of_two_chance: 50,
+            reuse_chance: 0,
+            power_of_two_chance: 0,
         }
     }
 
@@ -29,23 +29,23 @@ impl InstGenerator {
         rand: &mut R,
         arg: &'static ArgumentSpec,
     ) -> Argument {
-        if rand.below(100) < self.reuse_chance {
-            let filtered = self
-                .known_args
-                .iter()
-                .filter(|x| x.spec().length() == arg.length());
-            let options = filtered.collect::<Vec<&Argument>>();
-            if !options.is_empty() {
-                let chosen = rand.choose(options).clone();
-                return Argument::new(arg, chosen.value());
-            }
-        }
+        // if rand.below(100) < self.reuse_chance {
+        //     let filtered = self
+        //         .known_args
+        //         .iter()
+        //         .filter(|x| x.spec().length() == arg.length());
+        //     let options = filtered.collect::<Vec<&Argument>>();
+        //     if !options.is_empty() {
+        //         let chosen = rand.choose(options).clone();
+        //         return Argument::new(arg, chosen.value());
+        //     }
+        // }
 
-        if rand.below(100) < self.power_of_two_chance {
-            Argument::new(arg, 1 << rand.below(arg.length() as u64) as u32)
-        } else {
-            Argument::new(arg, rand.below(arg.max_value() as u64) as u32)
-        }
+        // if rand.below(100) < self.power_of_two_chance {
+        //     Argument::new(arg, 1 << rand.below(arg.length() as u64) as u32)
+        // } else {
+        Argument::new(arg, rand.below(arg.max_value() as u64) as u32)
+        // }
     }
 
     pub fn generate_instruction<R: libafl::prelude::Rand>(
@@ -99,38 +99,38 @@ mod tests {
         }
     }
 
-    #[test]
-    fn generate_instructions_and_reuse_arguments() {
-        for i in 0..20 {
-            let mut rng = Xoshiro256StarRand::default();
-            rng.set_seed(i);
+    // #[test]
+    // fn generate_instructions_and_reuse_arguments() {
+    //     for i in 0..20 {
+    //         let mut rng = Xoshiro256StarRand::default();
+    //         rng.set_seed(i);
 
-            let mut generator = InstGenerator::new();
+    //         let mut generator = InstGenerator::new();
 
-            // Tell the generator that there it should try emit instructions
-            // that use x35 as RD.
-            let magic_value: u32 = 35;
-            generator.forward_args(&vec![Argument::new(
-                &instructions::riscv::args::RD,
-                magic_value,
-            )]);
+    //         // Tell the generator that there it should try emit instructions
+    //         // that use x35 as RD.
+    //         let magic_value: u32 = 35;
+    //         generator.forward_args(&vec![Argument::new(
+    //             &instructions::riscv::args::RD,
+    //             magic_value,
+    //         )]);
 
-            let mut found = false;
-            // Generate 100 instructions and check that one of them actually
-            // use x35 as RD.
-            for _ in 0..100 {
-                let inst = generator.generate_instruction::<Xoshiro256StarRand>(
-                    &mut rng,
-                    &instructions::sets::riscv_g(),
-                );
-                for arg in inst.arguments() {
-                    if arg.spec() == &instructions::riscv::args::RD && arg.value() == magic_value {
-                        found = true;
-                    }
-                }
-            }
+    //         let mut found = false;
+    //         // Generate 100 instructions and check that one of them actually
+    //         // use x35 as RD.
+    //         for _ in 0..100 {
+    //             let inst = generator.generate_instruction::<Xoshiro256StarRand>(
+    //                 &mut rng,
+    //                 &instructions::sets::riscv_g(),
+    //             );
+    //             for arg in inst.arguments() {
+    //                 if arg.spec() == &instructions::riscv::args::RD && arg.value() == magic_value {
+    //                     found = true;
+    //                 }
+    //             }
+    //         }
 
-            assert!(found);
-        }
-    }
+    //         assert!(found);
+    //     }
+    // }
 }
