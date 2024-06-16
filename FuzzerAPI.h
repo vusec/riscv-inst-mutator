@@ -17,7 +17,7 @@
 /// Returns the path that `reportFuzzingIssue` will save the input to.
 /// @param reason A string that will be displayed in the fuzzing interface.
 /// @param pathToTestCase Path to the test case on disk.
-__attribute__((no_sanitize("memory")))
+__attribute__((no_sanitize("memory", "dataflow")))
 inline std::string getFuzzingSavePath(std::string reason, std::string pathToTestCase) {
     // Read the env var set by the fuzzer to figure out where to store the
     // failure reason.
@@ -65,7 +65,7 @@ inline std::string getFuzzingSavePath(std::string reason, std::string pathToTest
 /// @param reason A string that will be displayed in the fuzzing interface.
 /// @param pathToTestCase Path to the test case on disk.
 [[noreturn]]
-__attribute__((no_sanitize("memory")))
+__attribute__((no_sanitize("memory", "dataflow")))
 inline void reportFuzzingIssue(std::string reason, std::string pathToTestCase) {
     completedSimCallback();
 
