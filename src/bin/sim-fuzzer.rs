@@ -317,6 +317,7 @@ fn fuzz(
                 .parse_afl_cmdline(arguments)
                 .coverage_map_size(MAP_SIZE)
                 .is_persistent(false)
+                .is_deferred_frksrv(true)
                 .build_dynamic_map(edges_observer, tuple_list!(time_observer))
                 .unwrap();
 
